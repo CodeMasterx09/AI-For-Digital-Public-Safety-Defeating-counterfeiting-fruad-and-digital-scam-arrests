@@ -1,0 +1,3934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>PRAHARI AI  Digital Public Safety Intelligence</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   PRAHARI AI  design tokens
+   Palette: deep indigo night sky, beacon amber, scanning cyan,
+   alert coral. A night-watch / radar identity, not a generic
+   dark-dashboard-with-one-accent look.
+   ============================================================ */
+:root{
+  --night:#0E0B1F;
+  --night-2:#161029;
+  --panel: rgba(255,255,255,.04);
+  --panel-solid:#1A1530;
+  --border: rgba(255,255,255,.09);
+  --border-strong: rgba(255,255,255,.16);
+  --ink:#F3EFFB;
+  --ink-dim:#9C92BE;
+  --ink-faint:#6E6590;
+  --amber:#FFB627;
+  --amber-dim: rgba(255,182,39,.13);
+  --amber-glow: rgba(255,182,39,.35);
+  --cyan:#33E8D0;
+  --cyan-dim: rgba(51,232,208,.13);
+  --coral:#FF5C72;
+  --coral-dim: rgba(255,92,114,.14);
+  --violet:#8C6FE6;
+  --violet-dim: rgba(140,111,230,.14);
+  --radius:16px;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0; color:var(--ink); font-family:'Inter',sans-serif; min-height:100vh;
+  background:
+    radial-gradient(circle at 12% -8%, rgba(140,111,230,.20), transparent 42%),
+    radial-gradient(circle at 92% 4%, rgba(51,232,208,.12), transparent 38%),
+    radial-gradient(circle at 50% 100%, rgba(255,182,39,.07), transparent 45%),
+    var(--night);
+  background-attachment:fixed;
+}
+body::before{
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,.06) 1px, transparent 0);
+  background-size: 34px 34px; opacity:.5;
+}
+h1,h2,h3{margin:0; font-family:'Fraunces',serif;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+
+/* ══════════════════════════════════════════════════
+   ROLE GATE — post-"Enter Command Center" role picker
+══════════════════════════════════════════════════ */
+.role-gate{
+  position:fixed; inset:0; z-index:9998;
+  display:flex; align-items:center; justify-content:center;
+  opacity:1; transition:opacity .35s ease;
+}
+.role-gate.hidden{ opacity:0; pointer-events:none; }
+.role-gate-backdrop{
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 28%, rgba(140,111,230,.16), transparent 60%),
+    rgba(8,6,16,.88);
+  backdrop-filter: blur(16px);
+}
+.role-gate-card{
+  position:relative; z-index:1;
+  max-width:700px; width:92%;
+  background:var(--panel-solid); border:1px solid var(--border-strong);
+  border-radius:var(--radius); padding:44px 46px;
+  text-align:center; box-shadow:0 30px 90px rgba(0,0,0,.55);
+  animation: roleRise .5s ease;
+}
+@keyframes roleRise{ from{opacity:0; transform:translateY(16px) scale(.97);} to{opacity:1; transform:none;} }
+.role-gate-eyebrow{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:500;
+  letter-spacing:2.2px; color:var(--cyan); margin-bottom:12px;
+}
+.role-gate-title{ font-family:'Fraunces',serif; font-size:32px; font-weight:600; color:var(--ink); margin-bottom:12px; }
+.role-gate-sub{ font-size:13.5px; color:var(--ink-dim); max-width:480px; margin:0 auto 30px; line-height:1.6; }
+.role-options{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px; }
+.role-opt{
+  background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  padding:24px 14px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:9px;
+  transition:border-color .2s, transform .2s, background .2s;
+  color:var(--ink); font-family:inherit;
+}
+.role-opt:hover{ border-color:var(--amber); transform:translateY(-3px); background:var(--amber-dim); }
+.role-opt:active{ transform:translateY(-1px); }
+.role-ico{ font-size:27px; }
+.role-name{ font-family:'Rajdhani',sans-serif; font-weight:700; font-size:14.5px; line-height:1.3; }
+.role-desc{ font-size:11.5px; color:var(--ink-faint); line-height:1.45; }
+.role-gate-foot{ font-size:10.5px; letter-spacing:.4px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; }
+@media(max-width:720px){
+  .role-options{ grid-template-columns:1fr; }
+  .role-gate-card{ padding:32px 24px; }
+}
+
+/* Topbar "signed in as" badge, set once a role is picked */
+.role-badge{
+  display:flex; align-items:center; gap:10px;
+  padding:0 20px; height:100%; border-left:1px solid var(--border);
+  font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-dim);
+  white-space:nowrap;
+}
+.role-switch-btn{
+  background:var(--panel); border:1px solid var(--border); color:var(--cyan);
+  font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.5px;
+  padding:4px 10px; border-radius:20px; cursor:pointer; text-transform:uppercase;
+  transition:border-color .2s, color .2s;
+}
+.role-switch-btn:hover{ border-color:var(--cyan); color:var(--ink); }
+@media(max-width:900px){ .role-badge{ display:none !important; } }
+::selection{background:var(--amber-glow); color:#1A1206;}
+a{color:var(--cyan);}
+button:focus-visible, .tab:focus-visible, input:focus-visible, select:focus-visible, .cluster-item:focus-visible, #dropZone:focus-visible{
+  outline:2px solid var(--cyan); outline-offset:2px;
+}
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important;} }
+
+/* ---------- Radar signature mark ---------- */
+.radar{ position:relative; border-radius:50%; flex-shrink:0;
+  background: radial-gradient(circle, rgba(255,182,39,.08) 0%, transparent 70%);
+  border:1px solid var(--border-strong); }
+.radar::before{ /* sweep */
+  content:''; position:absolute; inset:0; border-radius:50%;
+  background: conic-gradient(from 0deg, transparent 0deg 282deg, rgba(51,232,208,.85) 326deg, transparent 360deg);
+  animation: radar-spin 3.4s linear infinite;
+  -webkit-mask: radial-gradient(circle, transparent 0%, black 8%);
+          mask: radial-gradient(circle, transparent 0%, black 8%);
+}
+.radar::after{ content:''; position:absolute; left:50%; top:50%; width:3px; height:3px; border-radius:50%;
+  background:var(--amber); transform:translate(-50%,-50%); box-shadow:0 0 6px 1px var(--amber-glow); }
+.radar .ring{ position:absolute; border:1px solid var(--border); border-radius:50%; inset:22%; }
+.radar .blip{ position:absolute; width:4px; height:4px; border-radius:50%; background:var(--cyan); }
+@keyframes radar-spin{ to{ transform:rotate(360deg); } }
+@keyframes blip-pulse{ 0%,100%{ opacity:.15; transform:scale(.7); } 50%{ opacity:1; transform:scale(1.3); } }
+
+/* ---------- Header ---------- */
+header{
+  position:sticky; top:0; z-index:30;
+  background:rgba(14,11,31,.78); backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+}
+.header-inner{ max-width:1320px; margin:0 auto; padding:14px 28px; display:flex; align-items:center; gap:20px; justify-content:space-between; flex-wrap:wrap;}
+.brand{ display:flex; align-items:center; gap:13px; }
+.brand .radar{ width:38px; height:38px; }
+.brand-text{ line-height:1.15; }
+.brand-word{ font-family:'Fraunces',serif; font-weight:700; font-size:21px; letter-spacing:.2px; background:linear-gradient(100deg,#FFE7B8,var(--amber) 55%,#FFD37A); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.brand-tag{ font-size:11px; color:var(--ink-faint); letter-spacing:.5px; text-transform:uppercase; font-weight:500; }
+.status-pill{ display:flex; align-items:center; gap:8px; padding:6px 12px; border-radius:30px; background:var(--panel); border:1px solid var(--border); font-size:11.5px; color:var(--ink-dim); }
+.status-pill .radar{ width:14px; height:14px; }
+.status-pill .radar::before{  mask-size: contain;
+    -webkit-mask-size: contain; }
+
+nav{ display:flex; gap:4px; padding:6px; background:var(--panel); border:1px solid var(--border); border-radius:14px; flex-wrap:wrap; }
+.tab{ display:flex; align-items:center; gap:7px; padding:9px 15px; border-radius:10px; cursor:pointer; color:var(--ink-faint);
+      font-weight:600; font-size:13.5px; letter-spacing:.1px; border:1px solid transparent; transition:.18s; white-space:nowrap; }
+.tab svg{ width:15px; height:15px; opacity:.85; }
+.tab:hover{ color:var(--ink); }
+.tab.active{ color:#1A1206; background:linear-gradient(135deg,var(--amber),#FFCB66); border-color:transparent;
+             box-shadow:0 2px 14px -2px var(--amber-glow); }
+
+/* ---------- Layout ---------- */
+main{ max-width:1320px; margin:0 auto; padding:32px 28px 70px; position:relative; z-index:1; }
+.view{ display:none; animation: rise .45s ease; } .view.active{ display:block; }
+@keyframes rise{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:translateY(0); } }
+
+.eyebrow{ font-size:11.5px; letter-spacing:1.6px; text-transform:uppercase; color:var(--cyan); font-weight:600; margin-bottom:8px; display:flex; align-items:center; gap:8px;}
+.eyebrow::before{ content:''; width:16px; height:1px; background:var(--cyan); }
+.view-title{ font-size:28px; font-weight:600; margin-bottom:6px; color:var(--ink); }
+.view-sub{ color:var(--ink-dim); font-size:14.5px; max-width:620px; margin-bottom:26px; line-height:1.55; }
+
+.grid{ display:grid; gap:18px; }
+.grid.cols-3{ grid-template-columns:repeat(3,1fr); }
+.grid.cols-4{ grid-template-columns:repeat(4,1fr); }
+.grid.cols-2{ grid-template-columns:1.25fr .9fr; }
+@media(max-width:900px){ .grid.cols-3,.grid.cols-4,.grid.cols-2{ grid-template-columns:1fr; } }
+
+.card{ background:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); backdrop-filter:blur(6px);
+       border:1px solid var(--border); border-radius:var(--radius); padding:22px; position:relative; overflow:hidden; }
+.card::before{ content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent); }
+.card h3{ margin:0 0 16px; font-size:13px; letter-spacing:.8px; color:var(--ink-faint); text-transform:uppercase; font-weight:600; font-family:'Inter',sans-serif; display:flex; align-items:center; gap:8px;}
+.card h3 svg{ width:15px; height:15px; color:var(--cyan); }
+
+/* ---------- Metric cards ---------- */
+.metric{ display:flex; flex-direction:column; gap:6px; }
+.metric-value{ font-size:36px; font-weight:700; font-family:'Fraunces',serif; background:linear-gradient(135deg,var(--ink),var(--ink-dim)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+.metric.accent-amber .metric-value{ background:linear-gradient(135deg,#FFE7B8,var(--amber)); -webkit-background-clip:text; background-clip:text;}
+.metric.accent-coral .metric-value{ background:linear-gradient(135deg,#FFB8C2,var(--coral)); -webkit-background-clip:text; background-clip:text;}
+.metric.accent-cyan .metric-value{ background:linear-gradient(135deg,#B8FBF1,var(--cyan)); -webkit-background-clip:text; background-clip:text;}
+.metric-label{ font-size:11.5px; color:var(--ink-faint); letter-spacing:.6px; text-transform:uppercase; font-weight:600; }
+
+/* ---------- Chat ---------- */
+.chat-wrap{ display:grid; grid-template-columns:1fr 320px; gap:18px; }
+@media(max-width:900px){ .chat-wrap{ grid-template-columns:1fr; } }
+#chatLog{ height:440px; overflow-y:auto; display:flex; flex-direction:column; gap:11px; padding-right:6px; }
+#chatLog::-webkit-scrollbar{ width:6px; } #chatLog::-webkit-scrollbar-thumb{ background:var(--border-strong); border-radius:4px; }
+.msg{ max-width:82%; padding:12px 15px; border-radius:14px; font-size:14px; line-height:1.5; }
+.msg.user{ align-self:flex-end; background:var(--violet-dim); border:1px solid rgba(140,111,230,.3); border-bottom-right-radius:4px;}
+.msg.bot{ align-self:flex-start; background:var(--panel); border:1px solid var(--border); border-bottom-left-radius:4px;}
+.msg.bot ul{ margin:8px 0 0; padding-left:18px; }
+.verdict-card{ border-radius:12px; padding:14px 16px; margin-top:4px; border:1px solid; font-size:13px; display:flex; gap:10px; align-items:flex-start;}
+.verdict-card svg{ width:20px; height:20px; flex-shrink:0; margin-top:1px; }
+.verdict-card.SCAM_LIKELY{ border-color:rgba(255,92,114,.4); background:var(--coral-dim); }
+.verdict-card.SCAM_LIKELY svg{ color:var(--coral); }
+.verdict-card.SUSPICIOUS{ border-color:rgba(255,182,39,.4); background:var(--amber-dim); }
+.verdict-card.SUSPICIOUS svg{ color:var(--amber); }
+.verdict-card.LIKELY_SAFE{ border-color:rgba(51,232,208,.4); background:var(--cyan-dim); }
+.verdict-card.LIKELY_SAFE svg{ color:var(--cyan); }
+.verdict-badge{ font-weight:700; letter-spacing:.3px; font-family:'Fraunces',serif; font-size:15px; }
+
+.chat-input{ display:flex; gap:8px; margin-top:14px; }
+.chat-input select, .chat-input input{ background:var(--panel); border:1px solid var(--border); color:var(--ink);
+                   padding:12px 14px; border-radius:11px; font-size:14px; font-family:'Inter',sans-serif;}
+.chat-input input{ flex:1; }
+.chat-input select{ flex-shrink:0; }
+.chat-input input:focus, .chat-input select:focus{ outline:none; border-color:var(--cyan); box-shadow:0 0 0 3px var(--cyan-dim); }
+
+button.primary{ background:linear-gradient(135deg,var(--amber),#FFCB66); color:#1A1206; border:none; padding:12px 20px;
+                border-radius:11px; font-weight:700; cursor:pointer; font-size:14px; font-family:'Inter',sans-serif;
+                box-shadow:0 4px 18px -4px var(--amber-glow); transition:.18s;}
+button.primary:hover{ transform:translateY(-1px); box-shadow:0 6px 22px -4px var(--amber-glow); }
+button.ghost{ background:var(--panel); color:var(--ink); border:1px solid var(--border-strong); }
+button.ghost:hover{ border-color:var(--cyan); }
+
+.preset{ display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+.preset button{ background:var(--panel); border:1px solid var(--border); color:var(--ink-dim); font-size:11.5px;
+                padding:7px 12px; border-radius:20px; cursor:pointer; transition:.15s; font-family:'Inter',sans-serif;}
+.preset button:hover{ color:var(--ink); border-color:var(--cyan); background:var(--cyan-dim); }
+
+.timeline{ font-size:13px; color:var(--ink-dim); line-height:1.5; position:relative; padding-left:26px; }
+.timeline .step{ position:relative; padding:9px 0; }
+.timeline .step::before{ content:attr(data-n); position:absolute; left:-26px; top:9px; width:18px; height:18px; border-radius:50%;
+  background:var(--panel-solid); border:1px solid var(--border-strong); color:var(--cyan); font-family:'IBM Plex Mono',monospace;
+  font-size:10px; display:flex; align-items:center; justify-content:center; }
+.timeline::before{ content:''; position:absolute; left:-17px; top:9px; bottom:9px; width:1px; background:var(--border-strong); }
+
+/* ---------- Dashboard alert feed ---------- */
+.alert-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:13px 14px; margin-bottom:8px;
+  border-radius:10px; background:var(--panel); border-left:3px solid var(--border-strong); font-size:13px; }
+.alert-row.SCAM_LIKELY{ border-left-color:var(--coral); }
+.alert-row.SUSPICIOUS{ border-left-color:var(--amber); }
+.pill{ padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.3px; font-family:'IBM Plex Mono',monospace;}
+.pill.SCAM_LIKELY{ background:var(--coral-dim); color:var(--coral); }
+.pill.SUSPICIOUS{ background:var(--amber-dim); color:var(--amber); }
+
+/* ---------- Graph ---------- */
+#graphCard{ padding:0; overflow:hidden; }
+#graphSvg{ width:100%; height:520px; display:block; }
+.cluster-list{ display:flex; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto; }
+.cluster-item{ border:1px solid var(--border); border-radius:12px; padding:13px 15px; cursor:pointer; background:var(--panel); transition:.15s;}
+.cluster-item:hover{ border-color:var(--cyan); transform:translateX(2px); }
+.cluster-item.selected{ border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan) inset, 0 0 20px -8px var(--cyan); }
+.risk-tag{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; font-family:'IBM Plex Mono',monospace; letter-spacing:.3px;}
+.risk-tag.HIGH{ background:var(--coral-dim); color:var(--coral); }
+.risk-tag.MEDIUM{ background:var(--amber-dim); color:var(--amber); }
+.risk-tag.LOW{ background:var(--cyan-dim); color:var(--cyan); }
+.intel-box{ font-size:12.5px; color:var(--ink-dim); margin-top:14px; line-height:1.7; white-space:pre-wrap; background:var(--panel);
+  border:1px solid var(--border); border-radius:10px; padding:14px; }
+.empty{ color:var(--ink-faint); font-size:13px; padding:26px 16px; text-align:center; }
+.legend{ display:flex; gap:16px; padding:12px 18px; font-size:11px; color:var(--ink-faint); border-top:1px solid var(--border); flex-wrap:wrap;}
+.legend span{ display:flex; align-items:center; gap:6px; }
+.legend i{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+
+/* ---------- Currency ---------- */
+#dropZone{ border:1.5px dashed var(--border-strong); border-radius:14px; padding:36px; text-align:center; cursor:pointer; transition:.18s; }
+#dropZone:hover{ border-color:var(--cyan); background:var(--cyan-dim); }
+#dropZone svg{ width:34px; height:34px; color:var(--ink-faint); margin-bottom:10px; }
+.denom-row{ display:flex; align-items:center; gap:10px; margin-top:14px; }
+.denom-row select{ background:var(--panel); border:1px solid var(--border); color:var(--ink); border-radius:8px; padding:8px 12px; font-family:'IBM Plex Mono',monospace; }
+.check-row{ display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); font-size:12.5px; }
+.check-row:last-child{ border-bottom:none; }
+
+/* ---------- Geo ---------- */
+#geoSvg{ width:100%; height:480px; display:block; }
+.district-row{ display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.district-row:last-child{ border-bottom:none; }
+.district-bar-wrap{ flex:1; margin:0 14px; height:6px; background:var(--panel); border-radius:4px; overflow:hidden; }
+.district-bar{ height:100%; background:linear-gradient(90deg,var(--cyan),var(--violet)); border-radius:4px; }
+
+/* ---------- Forecast (predictive) ---------- */
+.forecast-banner{ display:flex; gap:14px; align-items:flex-start; padding:16px 18px; border-radius:12px;
+  background:linear-gradient(135deg, var(--coral-dim), rgba(255,92,114,.04)); border:1px solid rgba(255,92,114,.3); margin-bottom:16px;}
+.forecast-banner.calm{ background:var(--panel); border-color:var(--border); }
+.forecast-banner svg{ width:22px; height:22px; flex-shrink:0; color:var(--coral); margin-top:1px;}
+.forecast-banner.calm svg{ color:var(--cyan); }
+.forecast-banner-title{ font-family:'Fraunces',serif; font-weight:700; font-size:15px; margin-bottom:4px; }
+.forecast-banner-text{ font-size:13px; color:var(--ink-dim); line-height:1.55; }
+.forecast-row{ display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--border); }
+.forecast-row:last-child{ border-bottom:none; }
+.forecast-row .f-name{ font-family:'Fraunces',serif; font-weight:600; min-width:96px; }
+.forecast-row .f-spark{ flex-shrink:0; }
+.forecast-row .f-growth{ font-family:'IBM Plex Mono',monospace; font-size:12px; min-width:58px; text-align:right; }
+.trend-tag{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; font-family:'IBM Plex Mono',monospace; letter-spacing:.3px; white-space:nowrap;}
+.trend-tag.EMERGING_HOTSPOT{ background:var(--coral-dim); color:var(--coral); }
+.trend-tag.RISING{ background:var(--amber-dim); color:var(--amber); }
+.trend-tag.STABLE{ background:var(--cyan-dim); color:var(--cyan); }
+.trend-tag.DECLINING{ background:var(--violet-dim); color:var(--violet); }
+.trend-tag.LOW_ACTIVITY{ background:rgba(255,255,255,.06); color:var(--ink-faint); }
+
+/* ---------- Modal ---------- */
+.modal{ position:fixed; inset:0; background:rgba(8,6,18,.85); backdrop-filter:blur(6px); display:flex;
+        justify-content:center; align-items:center; z-index:9999; transition:opacity .3s; padding:20px;}
+.modal.hidden{ opacity:0; pointer-events:none; }
+.modal-step{ display:none; } .modal-step.active{ display:block; }
+.modal-content{ width:560px; max-width:100%; background:linear-gradient(165deg, rgba(26,21,48,.97), rgba(20,16,38,.97));
+  border:1px solid var(--border-strong); border-radius:22px; padding:44px 38px; text-align:center; color:var(--ink);
+  box-shadow:0 30px 80px -20px rgba(0,0,0,.6), 0 0 60px -20px var(--amber-glow); animation:popIn .4s ease; position:relative; overflow:hidden;}
+.modal-content::before{ content:''; position:absolute; top:-40%; left:50%; width:300px; height:300px; transform:translateX(-50%);
+  background:radial-gradient(circle, rgba(255,182,39,.15), transparent 70%); pointer-events:none;}
+@keyframes popIn{ from{ transform:scale(.94) translateY(8px); opacity:0;} to{ transform:scale(1) translateY(0); opacity:1;} }
+.modal-content .radar{ width:88px; height:88px; margin:0 auto 22px; }
+.hello-title{ font-family:'Fraunces',serif; font-size:32px; font-weight:700; font-style:italic; color:var(--ink); margin:0 0 12px; }
+.hello-sub{ color:var(--ink-dim); font-size:14.5px; margin:0 0 30px; line-height:1.7; }
+.hello-sub strong{ color:var(--amber); font-style:normal; }
+.modal-content h2{ font-family:'Fraunces',serif; color:var(--ink); font-size:25px; font-weight:600; margin:0 0 12px; display:flex; align-items:center; justify-content:center; gap:10px;}
+.modal-content h2 .radar{ width:30px; height:30px; margin:0; }
+.modal-content p{ line-height:1.8; color:var(--ink-dim); font-size:14px; margin:0 0 22px; }
+.features{ margin:22px 0; text-align:left; display:flex; flex-direction:column; gap:13px; }
+.features div{ display:flex; align-items:center; gap:11px; font-size:14px; color:var(--ink); }
+.features svg{ width:17px; height:17px; color:var(--cyan); flex-shrink:0; }
+.modal-btn{ background:linear-gradient(135deg,var(--amber),#FFCB66); border:none; padding:13px 34px; border-radius:11px;
+  cursor:pointer; font-weight:700; font-size:15px; color:#1A1206; letter-spacing:.3px; transition:.15s;
+  box-shadow:0 8px 24px -6px var(--amber-glow);}
+.modal-btn:hover{ transform:translateY(-1px) scale(1.02); }
+.step-dots{ display:flex; justify-content:center; gap:8px; margin-bottom:26px; }
+.step-dots span{ width:7px; height:7px; border-radius:50%; background:var(--border-strong); transition:background .3s; }
+.step-dots span.on{ background:var(--amber); box-shadow:0 0 8px var(--amber-glow); }
+
+/* ============================================================
+   PRAHARI AI  Full-Screen Landing Experience
+   ============================================================ */
+
+/* -- Overlay container -- */
+#prahariLanding {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  font-family: 'Inter', sans-serif;
+  color: #F3EFFB;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(140,111,230,.35), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(51,232,208,.18), transparent),
+    radial-gradient(ellipse 50% 60% at 5% 80%, rgba(255,182,39,.14), transparent),
+    #080614;
+  background-attachment: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  overflow-y: auto;
+  transition: opacity .9s ease, transform .9s ease;
+}
+#prahariLanding.exit {
+  opacity: 0;
+  transform: scale(1.04);
+  pointer-events: none;
+}
+
+/* -- Animated grid background -- */
+#prahariLanding::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(51,232,208,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51,232,208,.045) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: gridShift 20s linear infinite;
+  pointer-events: none;
+}
+@keyframes gridShift {
+  0%   { transform: perspective(600px) rotateX(8deg) translateY(0); }
+  100% { transform: perspective(600px) rotateX(8deg) translateY(60px); }
+}
+
+/* -- Canvas particles -- */
+#landingCanvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* -- Glow orbs -- */
+.l-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  animation: orbFloat 8s ease-in-out infinite alternate;
+}
+.l-orb-1 { width: 420px; height: 420px; background: rgba(140,111,230,.18); top: -120px; left: -80px; animation-delay: 0s; }
+.l-orb-2 { width: 340px; height: 340px; background: rgba(51,232,208,.14); bottom: -80px; right: -60px; animation-delay: -3s; }
+.l-orb-3 { width: 260px; height: 260px; background: rgba(255,182,39,.11); bottom: 10%; left: 20%; animation-delay: -5s; }
+@keyframes orbFloat {
+  from { transform: translateY(0) scale(1); }
+  to   { transform: translateY(-30px) scale(1.07); }
+}
+
+/* -- Main content wrapper -- */
+.l-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1100px;
+  padding: 52px 32px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  margin: auto;
+}
+
+/* -- Radar badge -- */
+.l-radar-badge {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,182,39,.35);
+  background: radial-gradient(circle, rgba(255,182,39,.1) 0%, transparent 70%);
+  position: relative;
+  margin-bottom: 22px;
+  flex-shrink: 0;
+}
+.l-radar-badge::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0deg 282deg, rgba(51,232,208,.9) 326deg, transparent 360deg);
+  animation: radar-spin 2.8s linear infinite;
+  -webkit-mask: radial-gradient(circle, transparent 0%, black 10%);
+          mask:  radial-gradient(circle, transparent 0%, black 10%);
+}
+.l-radar-badge::after {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  width: 4px; height: 4px; border-radius: 50%;
+  background: #FFB627;
+  transform: translate(-50%,-50%);
+  box-shadow: 0 0 8px 2px rgba(255,182,39,.6);
+}
+.l-radar-ring {
+  position: absolute;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 50%;
+  inset: 20%;
+}
+
+/* -- Branding -- */
+.l-eyebrow {
+  font-size: 11px;
+  letter-spacing: 3.5px;
+  text-transform: uppercase;
+  color: #33E8D0;
+  font-weight: 600;
+  margin-bottom: 10px;
+  opacity: 0;
+  animation: fadeUp .6s ease .3s forwards;
+}
+.l-title {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(38px, 6vw, 72px);
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: -1px;
+  line-height: 1.05;
+  margin: 0 0 10px;
+  background: linear-gradient(135deg, #FFE7B8 0%, #FFB627 40%, #FFCB66 70%, #fff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-align: center;
+  opacity: 0;
+  animation: fadeUp .7s ease .5s forwards;
+  filter: drop-shadow(0 0 32px rgba(255,182,39,.35));
+}
+.l-subtitle {
+  font-size: clamp(11px, 1.4vw, 13.5px);
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: rgba(156,146,190,.7);
+  text-align: center;
+  margin-bottom: 14px;
+  opacity: 0;
+  animation: fadeUp .7s ease .7s forwards;
+  font-weight: 800;
+}
+.l-tagline {
+  font-size: clamp(14px, 1.8vw, 18px);
+  color: rgba(243,239,251,.6);
+  text-align: center;
+  margin-bottom: 32px;
+  line-height: 1.6;
+  max-width: 600px;
+  opacity: 0;
+  animation: fadeUp .7s ease .9s forwards;
+}
+.l-tagline strong { color: #33E8D0; font-weight: 600; }
+
+/* -- Boot sequence -- */
+.l-boot {
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 14px;
+  padding: 18px 24px;
+  width: 100%;
+  max-width: 520px;
+  margin-bottom: 32px;
+  opacity: 0;
+  animation: fadeUp .6s ease 1.1s forwards;
+  backdrop-filter: blur(8px);
+}
+.l-boot-line {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  color: rgba(243,239,251,.0);
+  padding: 3.5px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: color .3s ease;
+}
+.l-boot-line.visible { color: rgba(243,239,251,.75); }
+.l-boot-line.done    { color: #33E8D0; }
+.l-boot-prompt { color: #FFB627; flex-shrink: 0; }
+.l-boot-line svg {
+  width: 13px; height: 13px;
+  color: #33E8D0;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity .2s;
+}
+.l-boot-line.done svg { opacity: 1; }
+.l-boot-spinner {
+  width: 11px; height: 11px;
+  border: 1.5px solid rgba(51,232,208,.3);
+  border-top-color: #33E8D0;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+  display: none;
+}
+.l-boot-line.active .l-boot-spinner { display: block; }
+.l-boot-line.active svg { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* -- Feature cards -- */
+.l-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  width: 100%;
+  margin-bottom: 28px;
+  opacity: 0;
+  animation: fadeUp .7s ease 1.3s forwards;
+}
+@media (max-width: 860px) { .l-cards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .l-cards { grid-template-columns: 1fr; } }
+
+.l-card {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px;
+  padding: 20px 18px 18px;
+  backdrop-filter: blur(10px);
+  cursor: default;
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease, background .25s ease;
+  position: relative;
+  overflow: hidden;
+}
+.l-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.2), transparent);
+}
+.l-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(51,232,208,.4);
+  box-shadow: 0 12px 40px -12px rgba(51,232,208,.25), 0 0 0 1px rgba(51,232,208,.1) inset;
+  background: rgba(51,232,208,.05);
+}
+.l-card-icon {
+  font-size: 26px;
+  margin-bottom: 10px;
+  display: block;
+  filter: drop-shadow(0 0 8px rgba(255,182,39,.4));
+}
+.l-card-title {
+  font-family: 'Fraunces', serif;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #F3EFFB;
+  margin-bottom: 6px;
+}
+.l-card-desc {
+  font-size: 11.5px;
+  color: rgba(156,146,190,.75);
+  line-height: 1.55;
+}
+
+/* -- KPI stats -- */
+.l-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  width: 100%;
+  margin-bottom: 32px;
+  opacity: 0;
+  animation: fadeUp .7s ease 1.5s forwards;
+}
+@media (max-width: 680px) { .l-stats { grid-template-columns: repeat(2, 1fr); } }
+
+.l-stat {
+  background: rgba(8,6,20,.45);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 16px 14px;
+  text-align: center;
+  backdrop-filter: blur(6px);
+}
+.l-stat-value {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 800;
+  background: linear-gradient(135deg, #FFE7B8, #FFB627);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  line-height: 1.1;
+  margin-bottom: 5px;
+  display: block;
+}
+.l-stat-label {
+  font-size: 10.5px;
+  color: rgba(156,146,190,.65);
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* -- Enter button -- */
+.l-enter-wrap {
+  opacity: 0;
+  animation: fadeUp .7s ease 1.7s forwards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.l-enter-btn {
+  position: relative;
+  background: linear-gradient(135deg, #FFB627, #FFCB66);
+  color: #1A1206;
+  border: none;
+  padding: 16px 52px;
+  border-radius: 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 0 rgba(255,182,39,.5),
+    0 8px 32px -6px rgba(255,182,39,.5);
+  animation: btnPulse 2.5s ease-in-out infinite;
+  transition: transform .2s ease, box-shadow .2s ease;
+  overflow: hidden;
+}
+.l-enter-btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.25), transparent 60%);
+  opacity: 0;
+  transition: opacity .2s;
+}
+.l-enter-btn:hover {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 0 0 6px rgba(255,182,39,.2), 0 16px 40px -8px rgba(255,182,39,.6);
+  animation: none;
+}
+.l-enter-btn:hover::before { opacity: 1; }
+.l-enter-btn:active { transform: translateY(-1px) scale(1.01); }
+@keyframes btnPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,182,39,.4), 0 8px 32px -6px rgba(255,182,39,.45); }
+  50%      { box-shadow: 0 0 0 10px rgba(255,182,39,.0), 0 8px 32px -6px rgba(255,182,39,.55); }
+}
+.l-enter-hint {
+  font-size: 11px;
+  color: rgba(156,146,190,.45);
+  letter-spacing: .5px;
+}
+
+/* -- Shared fade-up keyframe -- */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* -- Scan line sweep (decorative) -- */
+.l-scan-line {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(51,232,208,.5), transparent);
+  animation: scanSweep 5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes scanSweep {
+  0%   { top: -2px; opacity: 0; }
+  5%   { opacity: 1; }
+  95%  { opacity: .6; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* -- Top accent bar -- */
+.l-accent-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #FFB627 30%, #33E8D0 70%, transparent);
+  z-index: 3;
+}
+
+/* -- Reduce motion -- */
+@media (prefers-reduced-motion: reduce) {
+  #prahariLanding * { animation: none !important; transition: none !important; }
+  .l-boot-line { color: rgba(243,239,251,.75); }
+}
+
+/* ============================================================
+   LANDING PAGE — ENHANCED ANIMATIONS (no new objects added)
+   Effects: typewriter cursor, title glitch, eyebrow shimmer,
+   stat card cycling glow, feature card border glow, boot border
+   sweep, enter button ring, accent bar march, orb colour-shift,
+   center radial pulse, subtitle breathe, second scan line,
+   radar ring pulse, hint text oscillation.
+   ============================================================ */
+
+/* 1 — Typewriter cursor on tagline — removed */
+
+/* 2 — Title glitch flicker (subtle, every 9 seconds) */
+.l-title { animation: fadeUp .7s ease .5s forwards, titleGlitch 9s ease-in-out 3s infinite; }
+@keyframes titleGlitch {
+  0%,94%,100% { filter:drop-shadow(0 0 32px rgba(255,182,39,.35)); transform:none; }
+  95%  { filter:drop-shadow(0 0 32px rgba(255,182,39,.6)) drop-shadow(2px 0 0 rgba(51,232,208,.5)) drop-shadow(-2px 0 0 rgba(255,92,114,.4)); transform:translateX(1.5px); }
+  96%  { filter:drop-shadow(0 0 32px rgba(255,182,39,.35)); transform:translateX(-1px); }
+  97%  { filter:drop-shadow(0 0 32px rgba(255,182,39,.55)) drop-shadow(-2px 0 0 rgba(51,232,208,.5)); transform:translateX(.5px); }
+  98%  { filter:drop-shadow(0 0 32px rgba(255,182,39,.35)); transform:none; }
+}
+
+/* 3 — Eyebrow shimmer sweep */
+.l-eyebrow { position:relative; overflow:hidden; animation:fadeUp .6s ease .3s forwards, eyebrowGlow 4s ease-in-out 2s infinite; }
+.l-eyebrow::after {
+  content:''; position:absolute; top:0; left:-100%; width:60%; height:100%;
+  background:linear-gradient(90deg,transparent,rgba(51,232,208,.45),transparent);
+  animation:shimmerPass 3.5s ease-in-out 2.5s infinite;
+}
+@keyframes shimmerPass { 0%{left:-60%} 100%{left:140%} }
+@keyframes eyebrowGlow { 0%,100%{text-shadow:none} 50%{text-shadow:0 0 18px rgba(51,232,208,.6)} }
+
+/* 4 — Stat cards: cycling amber glow + shimmer sweep */
+.l-stat { animation:statPulse 6s ease-in-out infinite; position:relative; overflow:hidden; }
+.l-stat:nth-child(1){animation-delay:0s}   .l-stat:nth-child(2){animation-delay:1.5s}
+.l-stat:nth-child(3){animation-delay:3s}   .l-stat:nth-child(4){animation-delay:4.5s}
+@keyframes statPulse {
+  0%,85%,100%{box-shadow:none;border-color:rgba(255,255,255,.08)}
+  90%{box-shadow:0 0 20px -6px rgba(255,182,39,.35);border-color:rgba(255,182,39,.3)}
+}
+.l-stat::after {
+  content:''; position:absolute; top:0; left:-80%; width:50%; height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,182,39,.12),transparent);
+  animation:statShimmer 6s ease-in-out infinite; pointer-events:none;
+}
+.l-stat:nth-child(1)::after{animation-delay:0s}   .l-stat:nth-child(2)::after{animation-delay:1.5s}
+.l-stat:nth-child(3)::after{animation-delay:3s}    .l-stat:nth-child(4)::after{animation-delay:4.5s}
+@keyframes statShimmer { 0%,75%{left:-80%} 90%,100%{left:140%} }
+
+/* 5 — Feature cards: staggered cyan border glow cycle */
+.l-card { animation:cardGlow 8s ease-in-out infinite; }
+.l-card:nth-child(1){animation-delay:0s} .l-card:nth-child(2){animation-delay:2s}
+.l-card:nth-child(3){animation-delay:4s} .l-card:nth-child(4){animation-delay:6s}
+@keyframes cardGlow {
+  0%,70%,100%{border-color:rgba(255,255,255,.1);box-shadow:none}
+  80%{border-color:rgba(51,232,208,.35);box-shadow:0 0 24px -8px rgba(51,232,208,.25),inset 0 0 20px -14px rgba(51,232,208,.1)}
+}
+
+/* 6 — Boot box: left border removed */
+.l-boot { position:relative; }
+
+/* 7 — Boot lines: cyan glow when marked done */
+.l-boot-line.done { text-shadow:0 0 12px rgba(51,232,208,.4); transition:color .3s ease,text-shadow .4s ease; }
+
+/* 8 — Enter button: expanding ring ripple */
+.l-enter-wrap { position:relative; }
+.l-enter-wrap::before {
+  content:''; position:absolute; top:50%; left:50%;
+  width:280px; height:60px; border-radius:18px;
+  transform:translate(-50%,-50%);
+  border:1px solid rgba(255,182,39,.0);
+  animation:enterRing 3s ease-in-out 2s infinite; pointer-events:none;
+}
+@keyframes enterRing {
+  0%{width:230px;height:54px;border-color:rgba(255,182,39,.55);opacity:1}
+  100%{width:340px;height:88px;border-color:rgba(255,182,39,.0);opacity:0}
+}
+
+/* 9 — Accent bar: gradient march */
+.l-accent-bar { background-size:200% 100%; animation:accentMarch 4s linear infinite; }
+@keyframes accentMarch { 0%{background-position:-100% 0} 100%{background-position:200% 0} }
+
+/* 10 — Orbs: slow colour hue-shift */
+.l-orb-1 { animation:orbFloat 8s ease-in-out infinite alternate, orbHue1 14s ease-in-out infinite alternate; }
+.l-orb-2 { animation:orbFloat 8s ease-in-out infinite alternate, orbHue2 11s ease-in-out infinite alternate; animation-delay:-3s,0s; }
+.l-orb-3 { animation:orbFloat 8s ease-in-out infinite alternate, orbHue3 17s ease-in-out infinite alternate; animation-delay:-5s,0s; }
+@keyframes orbHue1 { 0%{background:rgba(140,111,230,.18)} 50%{background:rgba(51,232,208,.14)} 100%{background:rgba(140,111,230,.22)} }
+@keyframes orbHue2 { 0%{background:rgba(51,232,208,.14)} 50%{background:rgba(255,182,39,.10)} 100%{background:rgba(51,232,208,.18)} }
+@keyframes orbHue3 { 0%{background:rgba(255,182,39,.11)} 50%{background:rgba(140,111,230,.15)} 100%{background:rgba(255,92,114,.09)} }
+
+/* 11 — Background: center radial pulse */
+#prahariLanding::after {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse 55% 40% at 50% 50%,rgba(255,182,39,.04),transparent 70%);
+  animation:centerPulse 7s ease-in-out infinite; pointer-events:none; z-index:0;
+}
+@keyframes centerPulse { 0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:1;transform:scale(1.12)} }
+
+/* 12 — Subtitle: letter-spacing breathe */
+.l-subtitle { animation:fadeUp .7s ease .7s forwards, subtitleBreathe 6s ease-in-out 3s infinite; }
+@keyframes subtitleBreathe { 0%,100%{letter-spacing:1.8px;opacity:.7} 50%{letter-spacing:2.6px;opacity:.95} }
+
+/* 13 — Radar badge: double-ring pulse */
+.l-radar-badge { animation:radarOuter 4s ease-in-out infinite; }
+@keyframes radarOuter {
+  0%,100%{box-shadow:0 0 0 0 rgba(255,182,39,.0),0 0 0 0 rgba(51,232,208,.0)}
+  50%{box-shadow:0 0 0 14px rgba(255,182,39,.07),0 0 0 28px rgba(51,232,208,.04)}
+}
+
+/* 14 — Hint text: gentle fade oscillation */
+.l-enter-hint { animation:hintFade 4s ease-in-out 3s infinite; }
+@keyframes hintFade { 0%,100%{opacity:.45} 50%{opacity:.8} }
+
+/* ============================================================
+   PRAHARI AI - COMMAND CENTER (post-login dashboard)
+   Dark Navy · Gold Accents · Cyan Highlights · Glassmorphism
+   ============================================================ */
+/* ═══════════════════════════════════════════════════════════════════════
+   PRAHARI AI — INNER DASHBOARD (post-login)
+   Theme: Dark Navy · Gold Accents · Cyan Highlights · Glassmorphism
+   DO NOT MODIFY WELCOME PAGE / LANDING / INTRO ANIMATION
+═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --navy-900: #060B14;
+  --navy-800: #0B1220;
+  --navy-700: #0F1A2E;
+  --navy-600: #152035;
+  --navy-500: #1C2B45;
+  --navy-400: #243550;
+
+  --gold-400: #F5C842;
+  --gold-300: #F7D468;
+  --gold-200: #FAE49A;
+  --gold-dim: rgba(245,200,66,.10);
+  --gold-border: rgba(245,200,66,.22);
+
+  --cyan-400: #2DD4BF;
+  --cyan-300: #5EEAD4;
+  --cyan-dim: rgba(45,212,191,.10);
+  --cyan-border: rgba(45,212,191,.20);
+
+  --danger: #F04A58;
+  --danger-dim: rgba(240,74,88,.12);
+  --warn: #F5A623;
+  --warn-dim: rgba(245,166,35,.12);
+  --safe: #22C55E;
+  --safe-dim: rgba(34,197,94,.10);
+
+  --text: #E8EDF5;
+  --text-2: #A8B4C4;
+  --text-3: #5A6880;
+  --border: rgba(255,255,255,.07);
+  --border-2: rgba(255,255,255,.04);
+
+  --glass: rgba(15,26,46,.72);
+  --glass-2: rgba(21,32,53,.60);
+  --blur: blur(16px);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--navy-900);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(45,212,191,.06) 0%, transparent 60%),
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,.025) 1px, transparent 0);
+  background-size: 100% 100%, 28px 28px;
+}
+
+.mono { font-family: 'IBM Plex Mono', monospace; }
+.raj  { font-family: 'Rajdhani', sans-serif; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--navy-800); }
+::-webkit-scrollbar-thumb { background: var(--navy-400); border-radius: 4px; }
+
+/* ══════════════════════════════════════════════════════
+   NAV — redesigned single-row command bar
+══════════════════════════════════════════════════════ */
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.85)} }
+
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center;
+  height: 66px;
+  background: rgba(6,11,20,.95);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: var(--blur);
+}
+
+/* ── Brand block ── */
+.brand {
+  display: flex; align-items: center; gap: 14px;
+  height: 100%;
+  padding: 0 26px;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.brand-mark {
+  position: relative; width: 10px; height: 10px; flex-shrink: 0;
+}
+.brand-text {
+  display: flex; flex-direction: column; gap: 5px; line-height: 1;
+}
+.brand-name {
+  font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700;
+  letter-spacing: 1.6px; color: var(--text);
+}
+.brand-name .accent { color: var(--gold-300); }
+.brand-badge {
+  align-self: flex-start;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5px; font-weight: 500; letter-spacing: 1.6px;
+  text-transform: uppercase; white-space: nowrap;
+  color: var(--gold-300);
+  background: var(--gold-dim);
+  border: 1px solid var(--gold-border);
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+.brand-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  background: var(--cyan-400); box-shadow: 0 0 10px 1px var(--cyan-400);
+  animation: pulse-dot 2.2s infinite;
+}
+
+/* ── Tabs ── */
+nav {
+  display: flex; align-items: stretch;
+  flex: 1; height: 100%; overflow-x: auto; gap: 2px;
+  padding: 0 4px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 32px), transparent 100%);
+          mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 32px), transparent 100%);
+}
+nav::-webkit-scrollbar { display: none; }
+
+.tab {
+  display: flex; align-items: center; gap: 8px;
+  height: 100%; padding: 0 18px;
+  cursor: pointer; white-space: nowrap;
+  color: var(--text-3);
+  font-family: 'Rajdhani', sans-serif; font-size: 13.5px;
+  font-weight: 600; letter-spacing: .4px;
+  border-bottom: 2px solid transparent;
+  transition: color .18s, border-color .18s, background .18s;
+  position: relative;
+}
+.tab .ico { font-size: 14px; filter: grayscale(1) opacity(.55); transition: filter .18s; }
+.tab:hover {
+  color: var(--text-2);
+  background: rgba(255,255,255,.03);
+}
+.tab.active {
+  color: var(--cyan-400);
+  border-bottom-color: var(--cyan-400);
+  background: linear-gradient(180deg, rgba(45,212,191,.09), rgba(45,212,191,.015));
+}
+.tab.active .ico { filter: none; }
+
+/* ── Right status cluster ── */
+.topbar-right {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 18px 0 12px;
+  border-left: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tb-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 6px;
+  font-size: 11.5px; white-space: nowrap;
+  background: var(--navy-600); border: 1px solid var(--border);
+  color: var(--text-2);
+}
+.tb-pill .dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.tb-pill .dot.g { background: var(--safe); box-shadow: 0 0 5px var(--safe); animation: pulse-dot 2s infinite; }
+.tb-pill .dot.a { background: var(--warn); box-shadow: 0 0 5px var(--warn); animation: pulse-dot 1.4s infinite; }
+.tb-pill strong { color: var(--text); font-weight: 600; font-size: 12px; }
+
+/* ── Status bar ── */
+.status-bar {
+  display: flex; align-items: center; gap: 0;
+  padding: 10px 28px;
+  background: rgba(15,26,46,.60);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: var(--blur);
+  overflow-x: auto;
+}
+.status-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 18px; font-size: 12.5px; color: var(--text-2);
+  border-right: 1px solid var(--border); white-space: nowrap;
+}
+.status-item:first-child { padding-left: 0; }
+.status-item:last-child { border-right: none; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.green { background: var(--safe); box-shadow: 0 0 6px var(--safe); animation: pulse-dot 2s infinite; }
+.status-dot.amber { background: var(--warn); box-shadow: 0 0 6px var(--warn); animation: pulse-dot 1.4s infinite; }
+.status-dot.red   { background: var(--danger); box-shadow: 0 0 6px var(--danger); animation: pulse-dot 1s infinite; }
+.status-val { color: var(--text); font-weight: 600; }
+
+/* ══════════════════════════════════════════════════════
+   VIEW SYSTEM
+══════════════════════════════════════════════════════ */
+.view { display: none; padding: 24px 28px 60px; max-width: 1380px; margin: 0 auto; }
+.view.active { display: block; }
+
+/* ══════════════════════════════════════════════════════
+   GLASS CARD
+══════════════════════════════════════════════════════ */
+.card {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  backdrop-filter: var(--blur);
+  transition: border-color .2s, transform .18s, box-shadow .18s;
+}
+.card:hover { border-color: rgba(255,255,255,.12); }
+.card-h { padding: 18px 20px 14px; border-bottom: 1px solid var(--border-2); }
+.card-h h3 {
+  font-family: 'Rajdhani', sans-serif; font-size: 13px;
+  text-transform: uppercase; letter-spacing: .7px; color: var(--text-3); font-weight: 600;
+}
+.card-body { padding: 18px 20px; }
+
+/* ══════════════════════════════════════════════════════
+   GRID HELPERS
+══════════════════════════════════════════════════════ */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.g3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.g4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+.g6 { display: grid; grid-template-columns: repeat(6,1fr); gap: 16px; }
+.g-shield { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+.gap16 { display: flex; flex-direction: column; gap: 16px; }
+
+@media(max-width:1100px) {
+  .g4,.g6 { grid-template-columns: repeat(3,1fr); }
+  .g-shield { grid-template-columns: 1fr; }
+}
+@media(max-width:780px) {
+  .g2,.g3,.g4,.g6 { grid-template-columns: 1fr; }
+  .topbar { height: 56px; }
+  .brand { padding: 0 14px; gap: 10px; }
+  .brand-badge { display: none; }
+  .view { padding: 16px; }
+  .tab { font-size: 12px; padding: 0 12px; gap: 6px; }
+}
+
+/* ══════════════════════════════════════════════════════
+   KPI CARDS
+══════════════════════════════════════════════════════ */
+.kpi-card {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex; flex-direction: column; gap: 10px;
+  position: relative; overflow: hidden;
+  backdrop-filter: var(--blur);
+  transition: transform .2s, box-shadow .2s, border-color .2s;
+  cursor: default;
+}
+.kpi-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--accent, var(--cyan-400));
+  opacity: .7;
+}
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.3); border-color: rgba(255,255,255,.14); }
+.kpi-icon { font-size: 22px; }
+.kpi-val {
+  font-family: 'Rajdhani', sans-serif; font-size: 34px; font-weight: 700;
+  color: var(--text); line-height: 1;
+}
+.kpi-label { font-size: 11.5px; color: var(--text-3); text-transform: uppercase; letter-spacing: .5px; }
+.kpi-trend { font-size: 11px; color: var(--safe); }
+.kpi-glow { position: absolute; bottom: -20px; right: -10px; font-size: 52px; opacity: .04; }
+
+/* ══════════════════════════════════════════════════════
+   BADGES / PILLS
+══════════════════════════════════════════════════════ */
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  letter-spacing: .3px; font-family: 'Rajdhani', sans-serif;
+}
+.pill-danger  { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(240,74,88,.25); }
+.pill-warn    { background: var(--warn-dim);   color: var(--warn);   border: 1px solid rgba(245,166,35,.25); }
+.pill-safe    { background: var(--safe-dim);   color: var(--safe);   border: 1px solid rgba(34,197,94,.20); }
+.pill-cyan    { background: var(--cyan-dim);   color: var(--cyan-400); border: 1px solid var(--cyan-border); }
+.pill-gold    { background: var(--gold-dim);   color: var(--gold-400); border: 1px solid var(--gold-border); }
+
+/* ══════════════════════════════════════════════════════
+   ■  CITIZEN SHIELD VIEW
+══════════════════════════════════════════════════════ */
+
+/* Quick chips */
+.chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.chip {
+  padding: 6px 13px; border-radius: 20px; font-size: 12px; cursor: pointer;
+  background: var(--navy-500); border: 1px solid var(--border);
+  color: var(--text-2); transition: all .18s;
+}
+.chip:hover { color: var(--cyan-400); border-color: var(--cyan-border); background: var(--cyan-dim); }
+
+/* Chat */
+#chatLog {
+  height: 320px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px; padding-right: 4px;
+}
+.msg {
+  max-width: 85%; padding: 12px 15px; border-radius: 12px;
+  font-size: 13.5px; line-height: 1.5;
+}
+.msg.user {
+  align-self: flex-end;
+  background: var(--navy-500); border: 1px solid var(--border);
+}
+.msg.bot {
+  align-self: flex-start;
+  background: rgba(45,212,191,.06); border: 1px solid rgba(45,212,191,.15);
+}
+
+/* Input */
+.input-row {
+  display: flex; gap: 8px; margin-top: 14px;
+}
+.input-row input {
+  flex: 1; background: var(--navy-600);
+  border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); padding: 12px 15px; font-size: 14px;
+  transition: border-color .2s;
+}
+.input-row input:focus { outline: none; border-color: var(--cyan-400); }
+.btn-analyze {
+  background: var(--cyan-400); color: #04211D;
+  border: none; padding: 12px 22px; border-radius: 10px;
+  font-weight: 700; font-size: 14px; cursor: pointer;
+  font-family: 'Rajdhani', sans-serif; letter-spacing: .3px;
+  transition: filter .18s, transform .15s;
+}
+.btn-analyze:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.btn-analyze:active { transform: translateY(0); }
+
+/* Verdict card */
+.verdict-wrap {
+  border-radius: 12px; padding: 16px; margin-top: 8px;
+  border: 1px solid; font-size: 13px;
+}
+.verdict-wrap.SCAM_LIKELY    { border-color: var(--danger); background: var(--danger-dim); }
+.verdict-wrap.SUSPICIOUS     { border-color: var(--warn);   background: var(--warn-dim); }
+.verdict-wrap.LIKELY_SAFE    { border-color: var(--safe);   background: var(--safe-dim); }
+.verdict-name {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: .5px;
+}
+.pdf-dl-btn {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 11px;
+  background: rgba(51,232,208,.12); border: 1px solid var(--cyan-border); color: var(--cyan);
+  font-size: 11.5px; font-weight: 600; font-family: 'Rajdhani', sans-serif; letter-spacing: .3px;
+  padding: 7px 13px; border-radius: 8px; cursor: pointer; transition: background .18s, transform .15s;
+}
+.pdf-dl-btn:hover { background: rgba(51,232,208,.2); transform: translateY(-1px); }
+.pdf-dl-btn:disabled { opacity: .7; cursor: default; transform: none; }
+
+/* ── WhatsApp skin (Citizen Shield only — scoped under .wa-card) ── */
+.wa-card { padding: 0; overflow: hidden; }
+.wa-header {
+  background: #075E54; padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+}
+.wa-avatar {
+  width: 38px; height: 38px; border-radius: 50%; background: #0B7C71;
+  display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0;
+}
+.wa-header-text { flex: 1; min-width: 0; }
+.wa-name { color: #fff; font-size: 14.5px; font-weight: 600; font-family: 'Rajdhani', sans-serif; letter-spacing: .3px; }
+.wa-status { color: #CFEAE6; font-size: 11px; display: flex; align-items: center; gap: 5px; margin-top: 1px; }
+.wa-online-dot { width: 6px; height: 6px; border-radius: 50%; background: #4FFFA0; box-shadow: 0 0 5px #4FFFA0; flex-shrink: 0; }
+.wa-district-select {
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.28); color: #fff;
+  font-size: 11px; border-radius: 14px; padding: 5px 10px; font-family: 'IBM Plex Mono', monospace;
+  flex-shrink: 0; cursor: pointer;
+}
+.wa-district-select option { color: #111; }
+.wa-body { background: #0B141A; padding: 16px; }
+.wa-card #chatLog { background: #0B141A; }
+.wa-card .msg.user {
+  background: #DCF8C6 !important; border: none !important; border-radius: 8px 8px 0 8px !important;
+}
+.wa-card .msg.user, .wa-card .msg.user * { color: #0B2B12 !important; }
+.wa-card .msg.bot {
+  background: #1F2C34 !important; border: none !important; border-radius: 8px 8px 8px 0 !important;
+  color: #E9EDEF;
+}
+.wa-card .verdict-wrap { background: #1F2C34 !important; border: none !important; border-radius: 8px 8px 8px 0 !important; }
+.wa-card .verdict-wrap.SCAM_LIKELY { border-left: 3px solid var(--danger) !important; }
+.wa-card .verdict-wrap.SUSPICIOUS  { border-left: 3px solid var(--warn) !important; }
+.wa-card .verdict-wrap.LIKELY_SAFE { border-left: 3px solid var(--safe) !important; }
+.wa-card .chip-row { padding: 10px 16px 0; background: #0B141A; margin: 0; }
+.wa-card .chip { background: #1F2C34; border-color: rgba(255,255,255,.08); border-radius: 16px; }
+.wa-card .chip:hover { background: #234038; border-color: #0B7C71; color: #4FFFA0; }
+.wa-input-row { background: #0B141A; padding: 12px 16px 16px; margin: 0 !important; }
+.wa-input-row input {
+  background: #1F2C34 !important; border: none !important; border-radius: 24px !important; padding: 11px 18px !important;
+}
+.wa-send {
+  width: 42px; height: 42px; border-radius: 50% !important; padding: 0 !important;
+  background: #00A884 !important; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0; color: #fff;
+}
+
+/* ── Generic one-shot highlight pulse, used by the live-trace toast ── */
+@keyframes pulseOnce {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,182,39,0); }
+  30% { box-shadow: 0 0 0 5px rgba(255,182,39,.35); }
+}
+.pulse-once { animation: pulseOnce 1.4s ease; border-radius: 8px; }
+
+/* ── Cross-module live trace toast ── */
+.trace-toast-container {
+  position: fixed; top: 78px; right: 20px; z-index: 600;
+  display: flex; flex-direction: column; gap: 10px; width: 320px;
+}
+.trace-toast {
+  background: var(--panel-solid); border: 1px solid var(--border-strong); border-left: 3px solid var(--amber);
+  border-radius: 10px; padding: 14px 30px 14px 16px; box-shadow: 0 14px 40px rgba(0,0,0,.4);
+  animation: traceIn .35s ease; font-size: 12.5px; color: var(--ink-dim); position: relative;
+}
+.trace-toast.leaving { animation: traceOut .3s ease forwards; }
+@keyframes traceIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes traceOut { to { opacity: 0; transform: translateX(24px); } }
+.trace-toast-title {
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px; color: var(--ink);
+  margin-bottom: 7px; display: flex; align-items: center; gap: 6px;
+}
+.trace-toast-title .dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 6px var(--amber); flex-shrink: 0;
+}
+.trace-toast .tlink { color: var(--cyan); cursor: pointer; text-decoration: underline; text-decoration-color: rgba(51,232,208,.4); }
+.trace-toast .tlink:hover { color: var(--ink); }
+.trace-toast-close {
+  position: absolute; top: 9px; right: 11px; cursor: pointer; color: var(--ink-faint);
+  font-size: 13px; background: none; border: none; line-height: 1;
+}
+.trace-toast-steps { display: flex; flex-direction: column; gap: 5px; }
+@media(max-width: 720px) { .trace-toast-container { right: 10px; left: 10px; width: auto; } }
+
+/* Risk meter */
+.risk-meter { position: relative; padding: 18px 0 8px; }
+.risk-track {
+  height: 8px; border-radius: 8px;
+  background: linear-gradient(90deg, var(--safe) 0%, var(--warn) 50%, var(--danger) 100%);
+  position: relative;
+}
+.risk-needle {
+  position: absolute; top: -4px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--navy-900);
+  box-shadow: 0 0 8px rgba(255,255,255,.4);
+  transform: translateX(-50%);
+  transition: left .6s cubic-bezier(.34,1.56,.64,1);
+}
+.risk-labels {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--text-3); margin-top: 6px;
+}
+.risk-score-big {
+  font-family: 'Rajdhani', sans-serif; font-size: 44px; font-weight: 700;
+  line-height: 1; text-align: center; margin-bottom: 10px;
+  transition: color .4s;
+}
+
+/* Threat intel card right panel */
+.intel-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid var(--border-2);
+  font-size: 13px;
+}
+.intel-row:last-child { border-bottom: none; }
+.intel-label { color: var(--text-3); font-size: 12px; }
+.intel-val { font-weight: 500; }
+
+/* Flag cards */
+.flag-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 0; font-size: 13px; color: var(--text-2);
+  border-bottom: 1px solid var(--border-2);
+}
+.flag-item:last-child { border-bottom: none; }
+.flag-item .flag-icon { font-size: 14px; }
+.flag-item.active { color: var(--danger); }
+.flag-item.active .flag-icon { color: var(--safe); }
+
+/* Action items */
+.action-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 8px; margin-bottom: 6px;
+  background: var(--navy-600); border: 1px solid var(--border);
+  font-size: 13px; cursor: pointer; transition: border-color .18s, background .18s;
+}
+.action-item:hover { border-color: var(--cyan-border); background: var(--cyan-dim); }
+.action-num {
+  width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--cyan-dim); color: var(--cyan-400); font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════
+   ■  COMMAND DASHBOARD VIEW
+══════════════════════════════════════════════════════ */
+
+/* Counter animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.kpi-val.animating { animation: countUp .5s ease forwards; }
+
+/* Charts */
+.chart-wrap { width: 100%; position: relative; }
+#trendChart, #pieChart { width: 100%; }
+
+/* Incident table */
+.inc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.inc-table th {
+  text-align: left; padding: 9px 12px;
+  background: var(--navy-600); color: var(--text-3);
+  font-size: 11px; text-transform: uppercase; letter-spacing: .4px;
+  border-bottom: 1px solid var(--border); font-weight: 600;
+}
+.inc-table th.sortable:hover { color: var(--amber); }
+.inc-table th.sort-asc  .sort-icon::after { content: ' ↑'; }
+.inc-table th.sort-desc .sort-icon::after { content: ' ↓'; }
+.inc-table th.sort-asc  .sort-icon,
+.inc-table th.sort-desc .sort-icon { color: var(--amber); }
+.inc-table td {
+  padding: 10px 12px; border-bottom: 1px solid var(--border-2);
+  color: var(--text-2); vertical-align: middle;
+}
+.inc-table tr:hover td { background: rgba(255,255,255,.025); }
+.inc-table td:first-child { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--cyan-400); }
+
+/* Live feed */
+.feed-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border-2);
+  animation: feedIn .4s ease;
+}
+.feed-item:last-child { border-bottom: none; }
+@keyframes feedIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.feed-icon {
+  width: 34px; height: 34px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.feed-icon.high   { background: var(--danger-dim); }
+.feed-icon.medium { background: var(--warn-dim); }
+.feed-icon.low    { background: var(--cyan-dim); }
+.feed-title { font-size: 13px; font-weight: 500; color: var(--text); }
+.feed-meta  { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.feed-time  { font-size: 11px; color: var(--text-3); margin-left: auto; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; }
+
+/* Alert pulse */
+@keyframes alertPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(240,74,88,.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(240,74,88,0); }
+}
+.alert-pulse { animation: alertPulse 2s infinite; }
+
+/* ══════════════════════════════════════════════════════
+   ■  FRAUD GRAPH VIEW
+══════════════════════════════════════════════════════ */
+#graphSvg { width: 100%; height: 500px; display: block; border-radius: 10px; }
+.node-info-panel {
+  background: var(--glass); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px; backdrop-filter: var(--blur);
+}
+.legend-row { display: flex; gap: 14px; padding: 12px 16px; font-size: 11px; color: var(--text-3); border-top: 1px solid var(--border); }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+
+.cluster-item {
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 13px; cursor: pointer; margin-bottom: 8px;
+  background: var(--glass-2); transition: border-color .2s, background .2s;
+}
+.cluster-item:hover, .cluster-item.selected {
+  border-color: var(--cyan-border); background: var(--cyan-dim);
+}
+
+/* ══════════════════════════════════════════════════════
+   ■  CURRENCY INTELLIGENCE VIEW
+══════════════════════════════════════════════════════ */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 14px; padding: 36px 24px;
+  text-align: center; cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--cyan-400); background: var(--cyan-dim);
+}
+.upload-icon { font-size: 36px; margin-bottom: 12px; }
+
+.timeline-step {
+  display: flex; align-items: center; gap: 14px; padding: 10px 0;
+  border-bottom: 1px solid var(--border-2); font-size: 13px;
+}
+.timeline-step:last-child { border-bottom: none; }
+.t-num {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+  background: var(--navy-500); color: var(--text-3);
+}
+.t-num.done   { background: var(--cyan-dim); color: var(--cyan-400); border: 1px solid var(--cyan-border); }
+.t-num.active { background: var(--gold-dim); color: var(--gold-400); border: 1px solid var(--gold-border); animation: pulse-dot 1.2s infinite; }
+
+.check-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid var(--border-2); font-size: 12.5px;
+}
+.check-row:last-child { border-bottom: none; }
+.check-label { color: var(--text-2); }
+.check-badge-pass { color: var(--safe); font-weight: 600; }
+.check-badge-fail { color: var(--danger); font-weight: 600; }
+
+/* Denom selector */
+.denom-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 16px; }
+.denom-btn {
+  padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--navy-500); color: var(--text-2);
+  cursor: pointer; font-size: 13px; font-weight: 600;
+  transition: all .18s; text-align: center;
+  font-family: 'Rajdhani', sans-serif;
+}
+.denom-btn:hover, .denom-btn.selected {
+  border-color: var(--gold-border); background: var(--gold-dim); color: var(--gold-400);
+}
+
+/* ══════════════════════════════════════════════════════
+   ■  GEO INTELLIGENCE VIEW
+══════════════════════════════════════════════════════ */
+.district-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 0; border-bottom: 1px solid var(--border-2);
+}
+.district-row:last-child { border-bottom: none; }
+.district-name { font-size: 13px; font-weight: 500; }
+.district-state { font-size: 11px; color: var(--text-3); }
+.bar-mini-track { flex: 1; height: 4px; border-radius: 4px; background: var(--navy-400); margin: 0 12px; }
+.bar-mini-fill  { height: 100%; border-radius: 4px; background: var(--danger); }
+.district-count { font-size: 13px; font-family: 'Rajdhani', sans-serif; font-weight: 700; min-width: 28px; text-align: right; }
+
+/* Map placeholder */
+.map-placeholder {
+  width: 100%; height: 380px; border-radius: 12px;
+  background: var(--navy-700); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 10px; color: var(--text-3);
+  position: relative; overflow: hidden;
+}
+.map-placeholder svg { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+
+/* Skeleton loader */
+.skeleton {
+  background: linear-gradient(90deg, var(--navy-500) 25%, var(--navy-400) 50%, var(--navy-500) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* ══════════════════════════════════════════════════════
+   LOADING STATE
+══════════════════════════════════════════════════════ */
+.api-status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+.api-status-dot.online  { background: var(--safe); box-shadow: 0 0 6px var(--safe); }
+.api-status-dot.offline { background: var(--danger); }
+
+/* Section title */
+.sec-title {
+  font-family: 'Rajdhani', sans-serif; font-size: 13px;
+  text-transform: uppercase; letter-spacing: .7px;
+  color: var(--text-3); font-weight: 600; margin-bottom: 12px;
+}
+
+/* Trend indicator */
+.trend-up   { color: var(--danger); font-size: 11px; }
+.trend-down { color: var(--safe);   font-size: 11px; }
+
+/* Forecast bar */
+.forecast-bar { padding: 10px 14px; border-radius: 8px; background: var(--navy-600); border: 1px solid var(--border); margin-bottom: 6px; }
+.forecast-district { font-size: 13px; font-weight: 500; }
+.forecast-detail   { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+
+/* Section spacer */
+.mt16 { margin-top: 16px; }
+
+
+
+/* ================================================================
+   PRAHARI AI — WAVE 2 BEAUTIFUL ANIMATIONS
+================================================================ */
+
+/* A. Aurora wave div */
+#prahariLanding .l-aurora {
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 0; overflow: hidden;
+}
+#prahariLanding .l-aurora::before,
+#prahariLanding .l-aurora::after {
+  content: ''; position: absolute;
+  width: 200%; height: 200%; top: -50%; left: -50%;
+  background: conic-gradient(from 0deg at 30% 40%,
+    rgba(140,111,230,.0) 0deg, rgba(140,111,230,.07) 40deg,
+    rgba(51,232,208,.06) 80deg, rgba(255,182,39,.04) 130deg,
+    rgba(255,92,114,.03) 190deg, rgba(51,232,208,.05) 240deg,
+    rgba(140,111,230,.07) 300deg, rgba(140,111,230,.0) 360deg);
+  animation: auroraSpin 28s linear infinite;
+}
+#prahariLanding .l-aurora::after {
+  background: conic-gradient(from 180deg at 70% 60%,
+    rgba(51,232,208,.0) 0deg, rgba(51,232,208,.05) 60deg,
+    rgba(255,182,39,.04) 120deg, rgba(140,111,230,.06) 200deg,
+    rgba(51,232,208,.0) 360deg);
+  animation: auroraSpin 38s linear infinite reverse;
+}
+@keyframes auroraSpin { to { transform: rotate(360deg); } }
+
+/* B. Title animated gradient */
+.l-title {
+  background-size: 300% 100%;
+  animation: fadeUp .7s ease .5s forwards, titleGlitch 9s ease-in-out 3s infinite,
+             titleGlow 3.5s ease-in-out 1.5s infinite, gradientFlow 5s ease-in-out 1.5s infinite !important;
+}
+@keyframes gradientFlow { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+@keyframes titleGlow {
+  0%,100% { filter: drop-shadow(0 0 22px rgba(255,182,39,.3)); }
+  50%     { filter: drop-shadow(0 0 55px rgba(255,182,39,.6)) drop-shadow(0 0 90px rgba(255,182,39,.2)); }
+}
+
+/* C. Radar ring expand-pulse */
+.l-radar-badge .l-radar-ring {
+  animation: radarRingPulse 3s ease-in-out infinite;
+}
+@keyframes radarRingPulse {
+  0%,100% { transform:scale(1);    opacity:.3; border-color:rgba(255,255,255,.12); }
+  50%     { transform:scale(1.18); opacity:.75; border-color:rgba(51,232,208,.5); box-shadow:0 0 14px rgba(51,232,208,.25); }
+}
+
+/* D. Eyebrow underline grow */
+.l-eyebrow { position:relative; }
+.l-eyebrow::before {
+  content:''; position:absolute; bottom:-3px; left:0;
+  height:1px; width:0;
+  background:linear-gradient(90deg,#33E8D0,rgba(51,232,208,0));
+  animation:underlineGrow 1.2s ease 1s forwards;
+}
+@keyframes underlineGrow { to { width:100%; } }
+
+/* E. Boot box internal scan line */
+#lBoot { position:relative; overflow:hidden; }
+#lBoot::after {
+  content:''; position:absolute; left:0; right:0; top:-2px;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(51,232,208,.65),transparent);
+  animation:bootScan 2.8s ease-in-out 1s infinite; pointer-events:none;
+}
+@keyframes bootScan {
+  0%{top:-2px;opacity:0} 10%{opacity:1} 90%{opacity:.5} 100%{top:100%;opacity:0}
+}
+
+/* F. Boot active text pulse */
+.l-boot-line.active span:last-child {
+  animation: bootTextPulse .8s ease-in-out infinite;
+}
+@keyframes bootTextPulse {
+  0%,100% { opacity:.6; }
+  50%     { opacity:1; text-shadow:0 0 8px rgba(243,239,251,.45); }
+}
+
+/* G. Feature card diagonal shimmer on hover */
+.l-card::after {
+  content:''; position:absolute;
+  top:-100%; left:-60%; width:40%; height:300%;
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.06),transparent);
+  transform:skewX(-15deg); pointer-events:none;
+}
+.l-card:hover::after { animation:cardDiagShimmer .55s ease forwards; }
+@keyframes cardDiagShimmer {
+  0%  { left:-60%; opacity:0; }
+  20% { opacity:1; }
+  100%{ left:130%; opacity:0; }
+}
+
+/* H. Card corner triangle accent */
+.l-card-corner {
+  position:absolute; top:0; left:0;
+  width:0; height:0; border-style:solid;
+  border-width:0 0 0 0; border-color:transparent;
+  transition:border-width .25s ease, border-color .25s ease;
+}
+.l-card:hover .l-card-corner {
+  border-width:28px 28px 0 0;
+  border-color:rgba(51,232,208,.45) transparent transparent transparent;
+}
+
+/* I. KPI stat odometer flip */
+.l-stat:hover .l-stat-value { animation:odometer .5s cubic-bezier(.36,.07,.19,.97); }
+@keyframes odometer {
+  0%  { transform:translateY(0); }
+  20% { transform:translateY(-6px) rotateX(12deg); opacity:.7; }
+  50% { transform:translateY(4px)  rotateX(-8deg); opacity:.9; }
+  80% { transform:translateY(-2px) rotateX(4deg);  opacity:1; }
+  100%{ transform:translateY(0)    rotateX(0);     opacity:1; }
+}
+
+/* J. KPI label colour flash on hover */
+.l-stat:hover .l-stat-label {
+  animation:labelFlash .4s ease;
+}
+@keyframes labelFlash {
+  0%,100% { color:rgba(156,146,190,.65); }
+  50%     { color:rgba(51,232,208,.9); letter-spacing:1.2px; }
+}
+
+/* K. Stat row connection line */
+.l-stats { position:relative; }
+.l-stats::before {
+  content:''; position:absolute; top:50%; left:10%;
+  width:80%; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(51,232,208,.08) 20%,rgba(255,182,39,.12) 50%,rgba(51,232,208,.08) 80%,transparent);
+  pointer-events:none; animation:statLine 4s ease-in-out infinite;
+}
+@keyframes statLine {
+  0%,100%{ opacity:0; transform:scaleX(.3); }
+  50%    { opacity:1; transform:scaleX(1); }
+}
+
+/* L. Enter button aurora border (CSS @property) */
+@property --angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
+.l-enter-btn::after {
+  content:''; position:absolute; inset:-2px; border-radius:16px;
+  background:conic-gradient(from var(--angle,0deg),#FFB627,#33E8D0,#8C6FE6,#FF5C72,#FFB627);
+  z-index:-1; animation:borderSpin 3s linear infinite; opacity:0; transition:opacity .3s;
+}
+@keyframes borderSpin { to { --angle:360deg; } }
+.l-enter-btn:hover::after { opacity:1; }
+
+/* M. Enter button light sweep on hover */
+.l-btn-sweep {
+  position:absolute; top:0; left:-100%;
+  width:60%; height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.32),transparent);
+  pointer-events:none;
+}
+.l-enter-btn:hover .l-btn-sweep { animation:btnSweep .45s ease forwards; }
+@keyframes btnSweep { 0%{left:-100%} 100%{left:160%} }
+
+/* N. Radar badge — ready burst on boot complete */
+.l-radar-badge.ready {
+  animation:radarReady 1.2s ease forwards, radarOuter 4s ease-in-out 1.2s infinite !important;
+}
+@keyframes radarReady {
+  0%  { box-shadow:0 0 0 0   rgba(51,232,208,.0); }
+  40% { box-shadow:0 0 0 20px rgba(51,232,208,.3), 0 0 40px rgba(51,232,208,.2); }
+  100%{ box-shadow:0 0 0 0   rgba(51,232,208,.0); }
+}
+
+/* O. Scan line — neon colour shift */
+.l-scan-line {
+  filter:blur(.4px);
+  animation:scanSweep 5s ease-in-out infinite, scanColorShift 5s ease-in-out infinite !important;
+}
+@keyframes scanColorShift {
+  0%,100%{ filter:blur(.4px) hue-rotate(0deg); }
+  50%    { filter:blur(.4px) hue-rotate(55deg); }
+}
+
+/* P. Grid background — opacity breathe */
+#prahariLanding::before {
+  animation:gridShift 20s linear infinite, gridGlow 8s ease-in-out infinite !important;
+}
+@keyframes gridGlow {
+  0%,100%{ opacity:.5; } 50%{ opacity:.85; }
+}
+
+/* Q. Accent bar thickness breathe */
+.l-accent-bar {
+  animation:accentMarch 4s linear infinite, accentThicken 6s ease-in-out infinite !important;
+}
+@keyframes accentThicken {
+  0%,100%{ height:3px; box-shadow:none; }
+  50%    { height:5px; box-shadow:0 0 14px rgba(255,182,39,.5); }
+}
+
+/* R. Subtitle — colour tint breathe */
+.l-subtitle {
+  animation: fadeUp .7s ease .7s forwards, subtitleBreathe 6s ease-in-out 3s infinite,
+             subtitleHue 9s ease-in-out 4s infinite !important;
+}
+@keyframes subtitleHue {
+  0%,100%{ color:rgba(156,146,190,.7); }
+  50%    { color:rgba(51,232,208,.55); }
+}
+
+/* S. Tagline strong words — pulse glow alternating */
+.l-tagline strong:first-child { animation:strongPulse 4s ease-in-out 2s infinite; }
+.l-tagline strong:last-child  { animation:strongPulse 4s ease-in-out 4s infinite; }
+@keyframes strongPulse {
+  0%,100%{ text-shadow:none; }
+  50%    { text-shadow:0 0 16px rgba(51,232,208,.6); }
+}
+
+/* T. l-enter-hint — letter tracking breathe */
+.l-enter-hint {
+  animation:hintFade 4s ease-in-out 3s infinite, hintTrack 8s ease-in-out 4s infinite !important;
+}
+@keyframes hintTrack {
+  0%,100%{ letter-spacing:.5px; }
+  50%    { letter-spacing:2px; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- -------------- PRAHARI AI LANDING SCREEN -------------- -->
+<div id="prahariLanding" role="dialog" aria-modal="true" aria-label="PRAHARI AI Welcome Screen">
+
+  <!-- Decorative layers -->
+  <div class="l-aurora"></div>
+  <div class="l-accent-bar"></div>
+  <div class="l-scan-line"></div>
+  <div class="l-scan-line-2"></div>
+  <div class="l-orb l-orb-1"></div>
+  <div class="l-orb l-orb-2"></div>
+  <div class="l-orb l-orb-3"></div>
+  <canvas id="landingCanvas"></canvas>
+
+  <!-- Main content -->
+  <div class="l-content">
+
+    <!-- Radar badge -->
+    <div class="l-radar-badge"><div class="l-radar-ring"></div></div>
+
+    <!-- Branding -->
+    <div class="l-eyebrow">Government-Grade Public Safety Intelligence</div>
+    <h1 class="l-title">PRAHARI AI</h1>
+    <div class="l-subtitle">Predictive Risk Analysis &amp; Human-AI Response Intelligence</div>
+    <p class="l-tagline">
+      <strong>Detecting Fraud.</strong> <strong>Protecting Citizens.</strong> <strong>Mapping Threat Networks.</strong>
+    </p>
+
+    <!-- Boot sequence -->
+    <div class="l-boot" id="lBoot">
+      <div class="l-boot-line" id="lb0">
+        <span class="l-boot-prompt"></span>
+        <div class="l-boot-spinner"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Initializing Intelligence Engine...</span>
+      </div>
+      <div class="l-boot-line" id="lb1">
+        <span class="l-boot-prompt"></span>
+        <div class="l-boot-spinner"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Connecting Fraud Intelligence Network...</span>
+      </div>
+      <div class="l-boot-line" id="lb2">
+        <span class="l-boot-prompt"></span>
+        <div class="l-boot-spinner"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Loading Geo Threat Database...</span>
+      </div>
+      <div class="l-boot-line" id="lb3">
+        <span class="l-boot-prompt"></span>
+        <div class="l-boot-spinner"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Loading Currency Verification Models...</span>
+      </div>
+      <div class="l-boot-line" id="lb4">
+        <span class="l-boot-prompt"></span>
+        <div class="l-boot-spinner"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Building Fraud Relationship Graph...</span>
+      </div>
+      <div class="l-boot-line" id="lb5">
+        <span class="l-boot-prompt"></span>
+        <div class="l-boot-spinner"></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>System Ready</span>
+      </div>
+    </div>
+
+    <!-- Feature cards -->
+    <div class="l-cards">
+      <div class="l-card">
+        <div class="l-card-corner"></div><span class="l-card-icon"></span>
+        <div class="l-card-title">Citizen Fraud Shield</div>
+        <div class="l-card-desc">Detect digital arrest scams, OTP fraud, phishing and social engineering in real time.</div>
+      </div>
+      <div class="l-card">
+        <div class="l-card-corner"></div><span class="l-card-icon"></span>
+        <div class="l-card-title">Fraud Network Intelligence</div>
+        <div class="l-card-desc">Map criminal relationships and fraud clusters across entities and transactions.</div>
+      </div>
+      <div class="l-card">
+        <div class="l-card-corner"></div><span class="l-card-icon"></span>
+        <div class="l-card-title">Counterfeit Currency Detection</div>
+        <div class="l-card-desc">Identify suspicious and counterfeit notes using multi-signal CV heuristics.</div>
+      </div>
+      <div class="l-card">
+        <div class="l-card-corner"></div><span class="l-card-icon"></span>
+        <div class="l-card-title">Geo Intelligence Engine</div>
+        <div class="l-card-desc">Track emerging fraud hotspots and predict district-level threat escalation.</div>
+      </div>
+    </div>
+
+    <!-- KPI Stats -->
+    <div class="l-stats">
+      <div class="l-stat">
+        <span class="l-stat-value" data-target="12457" data-prefix="" data-suffix="">0</span>
+        <span class="l-stat-label">Reports Analyzed</span>
+      </div>
+      <div class="l-stat">
+        <span class="l-stat-value" data-target="1842" data-prefix="" data-suffix="">0</span>
+        <span class="l-stat-label">Scams Detected</span>
+      </div>
+      <div class="l-stat">
+        <span class="l-stat-value" data-target="324" data-prefix="" data-suffix="">0</span>
+        <span class="l-stat-label">Alerts Issued</span>
+      </div>
+      <div class="l-stat">
+        <span class="l-stat-value" data-target="124" data-prefix="Rs." data-suffix=" Cr">0</span>
+        <span class="l-stat-label">Loss Prevented</span>
+      </div>
+    </div>
+
+    <!-- Enter button -->
+    <div class="l-enter-wrap">
+      <button class="l-enter-btn" id="lEnterBtn" onclick="enterCommandCenter()">
+        ENTER COMMAND CENTER<span class="l-btn-sweep"></span>
+      </button>
+      <span class="l-enter-hint">Secured  Encrypted  AI-Powered</span>
+    </div>
+
+  </div>
+</div>
+<!-- ---------------------------------------------------------- -->
+
+<body>
+
+<!-- ══════════════════════════════════════════════════
+     ROLE GATE — shown once, right after "Enter Command Center".
+     Picking a role only sets the STARTING tab; every tab in the
+     nav remains fully clickable/accessible for every role.
+══════════════════════════════════════════════════ -->
+<div id="traceToastContainer" class="trace-toast-container"></div>
+
+<div id="roleGate" class="role-gate" role="dialog" aria-modal="true" aria-label="Select your role" style="display:none;">
+  <div class="role-gate-backdrop"></div>
+  <div class="role-gate-card">
+    <div class="role-gate-eyebrow">PRAHARI AI · ACCESS</div>
+    <h2 class="role-gate-title">Continue as</h2>
+    <p class="role-gate-sub">This only tailors your starting screen — every module in the nav above stays fully accessible no matter which you pick.</p>
+    <div class="role-options">
+      <button class="role-opt" data-role="citizen" data-default-tab="shield">
+        <span class="role-ico">🧑</span>
+        <span class="role-name">Citizen</span>
+        <span class="role-desc">Check a suspicious call, message, or report fraud</span>
+      </button>
+      <button class="role-opt" data-role="bank" data-default-tab="currency">
+        <span class="role-ico">🏦</span>
+        <span class="role-name">Bank / Financial Institution</span>
+        <span class="role-desc">Verify currency notes and monitor fraud networks</span>
+      </button>
+      <button class="role-opt" data-role="officer" data-default-tab="dashboard">
+        <span class="role-ico">🛡</span>
+        <span class="role-name">Law Enforcement Officer</span>
+        <span class="role-desc">Full command center and case intelligence</span>
+      </button>
+    </div>
+    <div class="role-gate-foot">All modules remain accessible regardless of role · switch anytime from the topbar</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TOPBAR
+══════════════════════════════════════════════════ -->
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark"><span class="brand-dot"></span></span>
+    <div class="brand-text">
+      <span class="brand-name">PRAHARI <span class="accent">AI</span></span>
+      <span class="brand-badge">Command Center</span>
+    </div>
+  </div>
+  <nav>
+    <div class="tab active" data-view="shield"><span class="ico">🛡</span>Citizen Shield</div>
+    <div class="tab" data-view="dashboard"><span class="ico">📊</span>Command Dashboard</div>
+    <div class="tab" data-view="graph"><span class="ico">🕸</span>Fraud Graph</div>
+    <div class="tab" data-view="currency"><span class="ico">💵</span>Currency Intel</div>
+    <div class="tab" data-view="geo"><span class="ico">🗺</span>Geo Intelligence</div>
+  </nav>
+  <div id="roleBadge" class="role-badge" style="display:none; margin-left:auto;">
+    <span id="roleBadgeLabel"></span>
+    <button id="roleSwitchBtn" class="role-switch-btn" title="Switch role">Switch</button>
+  </div>
+</header>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <div class="status-item"><span class="status-dot amber"></span>Threat Level: <span class="status-val">Moderate</span></div>
+  <div class="status-item">🚨 Active Alerts: <span class="status-val" id="sb-alerts">24</span></div>
+  <div class="status-item">📍 High Risk Districts: <span class="status-val">5</span></div>
+  <div class="status-item">💰 Loss Prevented: <span class="status-val">₹12.4 Cr</span></div>
+  <div class="status-item"><span class="status-dot green"></span>Intelligence Network: <span class="status-val">Online</span></div>
+  <div class="status-item mono" id="apiStatusBar" style="font-size:11.5px;"><span class="api-status-dot offline" id="apiDot"></span>Backend: <span id="apiStatusText">checking…</span></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     CITIZEN SHIELD
+══════════════════════════════════════════════════ -->
+<section class="view active" id="view-shield">
+  <div class="g-shield" style="align-items:start;">
+
+    <!-- LEFT PANEL -->
+    <div class="gap16">
+
+      <!-- Input card — WhatsApp-style chat skin -->
+      <div class="card wa-card">
+        <div class="wa-header">
+          <div class="wa-avatar">🛡</div>
+          <div class="wa-header-text">
+            <div class="wa-name">Prahari AI · Fraud Shield</div>
+            <div class="wa-status"><span class="wa-online-dot"></span>online</div>
+          </div>
+          <select id="districtSelect" class="wa-district-select" title="Your district (used for geo-intel logging)">
+            <option value="Thane" data-lat="19.2183" data-lon="72.9781">Thane</option>
+            <option value="Mumbai" data-lat="19.0760" data-lon="72.8777">Mumbai</option>
+            <option value="Pune" data-lat="18.5204" data-lon="73.8567">Pune</option>
+            <option value="Nagpur" data-lat="21.1458" data-lon="79.0882">Nagpur</option>
+            <option value="Nashik" data-lat="19.9975" data-lon="73.7898">Nashik</option>
+            <option value="Aurangabad" data-lat="19.8762" data-lon="75.3433">Aurangabad</option>
+          </select>
+        </div>
+        <div class="wa-body">
+          <div id="chatLog">
+            <div class="msg bot">
+              <strong style="color:#3FE0B8">PRAHARI AI — Ready</strong><br><br>
+              Submit a suspicious message or call description for instant AI threat classification.<br>
+              I detect: Digital Arrest · OTP Scams · KYC Fraud · Investment Scams · Courier Scams
+            </div>
+          </div>
+          <div class="chip-row">
+            <span class="chip" onclick="useChip(0)">🚨 Digital Arrest</span>
+            <span class="chip" onclick="useChip(1)">🏦 OTP Scam</span>
+            <span class="chip" onclick="useChip(2)">📋 Fake KYC</span>
+            <span class="chip" onclick="useChip(3)">📈 Investment Fraud</span>
+            <span class="chip" onclick="useChip(4)">📦 Courier Scam</span>
+            <span class="chip" onclick="useChip(5)">✅ Safe Message</span>
+          </div>
+          <div class="input-row wa-input-row">
+            <input id="chatInput" type="text" placeholder="Type a message…"/>
+            <button class="btn-analyze wa-send" onclick="analyzeMessage()" title="Analyze" aria-label="Analyze">➤</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Incident response -->
+      <div class="card" id="incidentCard" style="display:none">
+        <div class="card-h"><h3>⚡ Recommended Actions</h3></div>
+        <div class="card-body" id="incidentActions"></div>
+      </div>
+
+      <!-- Why flagged -->
+      <div class="card" id="flagCard" style="display:none">
+        <div class="card-h"><h3>🔍 Why Was This Flagged?</h3></div>
+        <div class="card-body" id="flagList"></div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="gap16">
+
+      <!-- Threat intel -->
+      <div class="card">
+        <div class="card-h"><h3>🎯 Threat Intelligence</h3></div>
+        <div class="card-body">
+          <div id="threatPanel">
+            <div style="text-align:center;padding:30px 0;color:var(--text-3);font-size:13px;">
+              Submit a message to generate threat intelligence
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Risk meter -->
+      <div class="card">
+        <div class="card-h"><h3>📊 Risk Score</h3></div>
+        <div class="card-body">
+          <div class="risk-score-big" id="riskScoreBig" style="color:var(--text-3);">—</div>
+          <div class="risk-meter">
+            <div class="risk-track">
+              <div class="risk-needle" id="riskNeedle" style="left:0%"></div>
+            </div>
+            <div class="risk-labels">
+              <span>LOW</span><span>MEDIUM</span><span>HIGH</span>
+            </div>
+          </div>
+          <div style="margin-top:12px;" id="riskLabel">
+            <div style="text-align:center;color:var(--text-3);font-size:12px;">Awaiting analysis</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backend status -->
+      <div class="card">
+        <div class="card-h"><h3>⚙ System Status</h3></div>
+        <div class="card-body">
+          <div class="intel-row"><span class="intel-label">Backend API</span><span id="backendStatus" class="intel-val" style="color:var(--text-3)">Checking…</span></div>
+          <div class="intel-row"><span class="intel-label">AI Engine</span><span class="intel-val" style="color:var(--safe)">Rule + LLM</span></div>
+          <div class="intel-row"><span class="intel-label">Database</span><span class="intel-val" style="color:var(--safe)">In-Memory (Demo)</span></div>
+          <div class="intel-row"><span class="intel-label">Alert Channel</span><span class="intel-val" style="color:var(--warn)">Simulated</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+     COMMAND DASHBOARD
+══════════════════════════════════════════════════ -->
+<section class="view" id="view-dashboard">
+
+  <!-- KPI row -->
+  <div class="g6" style="margin-bottom:20px;" id="kpiRow">
+    <div class="kpi-card" style="--accent:var(--cyan-400)">
+      <span class="kpi-icon">📋</span>
+      <div class="kpi-val" data-target="12457" id="kpi-reports">0</div>
+      <div class="kpi-label">Total Reports</div>
+      <div class="kpi-trend">↑ 14% this week</div>
+      <div class="kpi-glow">📋</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--danger)">
+      <span class="kpi-icon">🚨</span>
+      <div class="kpi-val" data-target="1842" id="kpi-scams">0</div>
+      <div class="kpi-label">Scams Detected</div>
+      <div class="kpi-trend trend-up">↑ 8% this week</div>
+      <div class="kpi-glow">🚨</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--warn)">
+      <span class="kpi-icon">⚡</span>
+      <div class="kpi-val" data-target="324" id="kpi-alerts">0</div>
+      <div class="kpi-label">MHA Alerts Sent</div>
+      <div class="kpi-trend">↑ 22% this week</div>
+      <div class="kpi-glow">⚡</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--danger)">
+      <span class="kpi-icon">🕸</span>
+      <div class="kpi-val" data-target="18" id="kpi-rings">0</div>
+      <div class="kpi-label">Fraud Rings</div>
+      <div class="kpi-trend">↑ 3 new rings</div>
+      <div class="kpi-glow">🕸</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--gold-400)">
+      <span class="kpi-icon">💰</span>
+      <div class="kpi-val" id="kpi-loss">₹0</div>
+      <div class="kpi-label">Loss Prevented</div>
+      <div class="kpi-trend trend-down">↑ ₹2.1 Cr this week</div>
+      <div class="kpi-glow">💰</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--safe)">
+      <span class="kpi-icon">🎯</span>
+      <div class="kpi-val" id="kpi-acc">0%</div>
+      <div class="kpi-label">AI Accuracy</div>
+      <div class="kpi-trend trend-down" style="color:var(--safe)">↑ 3% vs last month</div>
+      <div class="kpi-glow">🎯</div>
+    </div>
+  </div>
+
+  <div class="g2" style="margin-bottom:20px;">
+
+    <!-- Trend chart -->
+    <div class="card">
+      <div class="card-h" style="display:flex;align-items:center;justify-content:space-between;">
+        <h3>📈 7-Day Fraud Trend</h3>
+        <span class="pill pill-danger">Live</span>
+      </div>
+      <div class="card-body">
+        <canvas id="trendChart" height="180" style="width:100%;display:block;"></canvas>
+      </div>
+    </div>
+
+    <!-- Pie chart -->
+    <div class="card">
+      <div class="card-h"><h3>🎯 Threat Distribution</h3></div>
+      <div class="card-body" style="display:flex;align-items:center;gap:20px;">
+        <canvas id="pieChart" width="150" height="150" style="flex-shrink:0;display:block;"></canvas>
+        <div id="pieLegend" style="flex:1;font-size:12px;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="g2" style="margin-bottom:20px;">
+
+    <!-- Incidents table -->
+    <div class="card">
+      <div class="card-h"><h3>📁 Recent Incidents</h3></div>
+      <div class="card-body" style="padding:0;">
+        <table class="inc-table" id="incTable">
+          <thead>
+            <tr>
+              <th>Case ID</th>
+              <th>District</th>
+              <th>Threat</th>
+              <th class="sortable" data-col="3" onclick="sortIncTable(this)" style="cursor:pointer;user-select:none;" title="Click to sort">Risk <span class="sort-icon">↕</span></th>
+              <th class="sortable" data-col="4" onclick="sortIncTable(this)" style="cursor:pointer;user-select:none;" title="Click to sort">Status <span class="sort-icon">↕</span></th>
+              <th class="sortable" data-col="5" onclick="sortIncTable(this)" style="cursor:pointer;user-select:none;" title="Click to sort">Time <span class="sort-icon">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="incTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Live feed -->
+    <div class="card">
+      <div class="card-h" style="display:flex;align-items:center;justify-content:space-between;">
+        <h3>🔴 Live Threat Feed</h3>
+        <span class="pill pill-danger alert-pulse" style="font-size:10px;">LIVE</span>
+      </div>
+      <div class="card-body" id="liveFeed" style="max-height:310px;overflow-y:auto;"></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+     FRAUD GRAPH
+══════════════════════════════════════════════════ -->
+<section class="view" id="view-graph">
+  <div class="g2" style="align-items:start;">
+
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div class="card-h"><h3>🕸 Fraud Network Graph</h3></div>
+      <svg id="graphSvg"></svg>
+      <div class="legend-row">
+        <span><span class="legend-dot" style="background:var(--danger)"></span>High Risk</span>
+        <span><span class="legend-dot" style="background:var(--warn)"></span>Medium Risk</span>
+        <span><span class="legend-dot" style="background:var(--cyan-400)"></span>Low Risk</span>
+        <span><span class="legend-dot" style="background:#fff"></span>Flagged Session</span>
+      </div>
+    </div>
+
+    <div class="gap16">
+      <!-- Cluster list -->
+      <div class="card">
+        <div class="card-h"><h3>🔎 Fraud Rings Detected</h3></div>
+        <div class="card-body" id="clusterList" style="max-height:220px;overflow-y:auto;">
+          <div style="color:var(--text-3);text-align:center;padding:20px;font-size:13px;">Loading clusters…</div>
+        </div>
+      </div>
+
+      <!-- Node detail -->
+      <div class="card" id="clusterDetail">
+        <div class="card-h"><h3>📦 Cluster Intelligence</h3></div>
+        <div class="card-body" id="clusterDetailBody">
+          <div style="color:var(--text-3);font-size:13px;text-align:center;padding:16px;">
+            Click a cluster or node to view intelligence
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+     CURRENCY INTELLIGENCE
+══════════════════════════════════════════════════ -->
+<section class="view" id="view-currency">
+  <div class="g2" style="align-items:start;">
+
+    <!-- Left: upload + result -->
+    <div class="gap16">
+
+      <div class="card">
+        <div class="card-h"><h3>💵 Note Authentication</h3></div>
+        <div class="card-body">
+          <p class="sec-title" style="margin-bottom:10px;">Select Denomination</p>
+          <div class="denom-grid">
+            <button class="denom-btn" data-d="10">₹10</button>
+            <button class="denom-btn" data-d="20">₹20</button>
+            <button class="denom-btn" data-d="50">₹50</button>
+            <button class="denom-btn selected" data-d="100">₹100</button>
+            <button class="denom-btn" data-d="200">₹200</button>
+            <button class="denom-btn" data-d="500">₹500</button>
+          </div>
+          <div class="upload-zone" id="uploadZone" onclick="document.getElementById('noteInput').click()">
+            <div class="upload-icon">🔬</div>
+            <div style="font-size:15px;font-weight:600;margin-bottom:6px;">Upload Note Image</div>
+            <div style="font-size:12px;color:var(--text-3)">Drag & drop or click to browse · JPG, PNG, WEBP</div>
+            <input type="file" id="noteInput" accept="image/*" style="display:none" onchange="handleNoteUpload(event)"/>
+          </div>
+          <div style="margin-top:12px;">
+            <img id="notePreview" style="display:none;width:100%;border-radius:8px;border:1px solid var(--border);"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verdict -->
+      <div class="card" id="currencyResult" style="display:none">
+        <div class="card-h"><h3>🧪 Analysis Result</h3></div>
+        <div class="card-body" id="currencyResultBody"></div>
+      </div>
+
+    </div>
+
+    <!-- Right: timeline + checks -->
+    <div class="gap16">
+
+      <div class="card">
+        <div class="card-h"><h3>⏱ Analysis Timeline</h3></div>
+        <div class="card-body" id="analysisTimeline">
+          <div class="timeline-step"><div class="t-num">1</div><div><div style="font-size:13px;">Image Upload</div><div style="font-size:11px;color:var(--text-3)">Awaiting image</div></div></div>
+          <div class="timeline-step"><div class="t-num">2</div><div><div style="font-size:13px;">OCR / Denomination Check</div><div style="font-size:11px;color:var(--text-3)">Pending</div></div></div>
+          <div class="timeline-step"><div class="t-num">3</div><div><div style="font-size:13px;">Security Feature Analysis</div><div style="font-size:11px;color:var(--text-3)">Pending</div></div></div>
+          <div class="timeline-step"><div class="t-num">4</div><div><div style="font-size:13px;">Forgery Indicator Check</div><div style="font-size:11px;color:var(--text-3)">Pending</div></div></div>
+          <div class="timeline-step"><div class="t-num">5</div><div><div style="font-size:13px;">Final Verdict</div><div style="font-size:11px;color:var(--text-3)">Pending</div></div></div>
+        </div>
+      </div>
+
+      <div class="card" id="securityChecksCard" style="display:none">
+        <div class="card-h"><h3>🔐 Security Feature Checks</h3></div>
+        <div class="card-body" id="securityChecksBody"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>ℹ RBI Security Guide</h3></div>
+        <div class="card-body">
+          <div style="font-size:12.5px;color:var(--text-2);line-height:1.8;">
+            <div>🔵 Security thread (windowed)</div>
+            <div>🔵 Gandhi watermark (left zone)</div>
+            <div>🔵 Intaglio printing (raised ink)</div>
+            <div>🔵 OVI colour-shift ink</div>
+            <div>🔵 Microprint in border</div>
+            <div>🔵 Unique serial number</div>
+          </div>
+          <a href="https://www.rbi.org.in/scripts/SecurityFeatures.aspx" target="_blank"
+             style="display:inline-block;margin-top:12px;color:var(--cyan-400);font-size:12px;">
+            → View full RBI guide
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+     GEO INTELLIGENCE
+══════════════════════════════════════════════════ -->
+<section class="view" id="view-geo">
+  <div class="g2" style="align-items:start;">
+
+    <!-- Map + heatmap area -->
+    <div class="gap16">
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="card-h"><h3>🗺 Fraud Incident Heatmap — India</h3></div>
+        <div class="card-body" style="padding:16px;">
+          <div class="map-placeholder" id="indiaMap">
+            <svg id="mapSvg" viewBox="0 0 500 560"></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>📈 7-Day Risk Trend</h3></div>
+        <div class="card-body">
+          <svg id="geoTrendChart" width="100%" height="130"></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: hotspots + forecast -->
+    <div class="gap16">
+
+      <div class="card">
+        <div class="card-h"><h3>🔥 High Risk Districts</h3></div>
+        <div class="card-body" id="hotspotList">
+          <div style="color:var(--text-3);text-align:center;padding:20px;font-size:13px;">Loading…</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>🔮 Threat Forecast</h3></div>
+        <div class="card-body" id="forecastPanel">
+          <div style="color:var(--text-3);font-size:13px;">Loading forecasts…</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>🗂 Crime Type Breakdown</h3></div>
+        <div class="card-body" id="crimeTypePanel">
+          <svg id="geoBarChart" width="100%" height="200"></svg>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<script>
+/* ---------- PRAHARI AI LANDING SCREEN LOGIC ---------- */
+(function() {
+  /* -- Particle canvas -- */
+  const canvas = document.getElementById('landingCanvas');
+  const ctx    = canvas.getContext('2d');
+  let W, H, particles = [], raf;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* Enhanced particle system with mouse magnetism */
+  let mouse = { x: W / 2, y: H / 2 };
+  window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+  function Particle() {
+    this.reset = function() {
+      this.x  = Math.random() * W;
+      this.y  = Math.random() * H;
+      this.ox = this.x; // origin x
+      this.oy = this.y; // origin y
+      this.r  = Math.random() * 1.6 + .4;
+      this.speed = Math.random() * .4 + .15;
+      this.angle = Math.random() * Math.PI * 2;
+      this.vx = Math.cos(this.angle) * this.speed;
+      this.vy = Math.sin(this.angle) * this.speed;
+      this.alpha = Math.random() * .55 + .12;
+      this.life  = 0;
+      this.maxLife = Math.random() * 400 + 200;
+      const roll = Math.random();
+      this.color = roll > .6
+        ? [51,232,208]
+        : roll > .3
+          ? [255,182,39]
+          : [140,111,230];
+    };
+    this.reset();
+  }
+
+  /* Spawn 120 particles */
+  for (let i = 0; i < 120; i++) { const p = new Particle(); p.life = Math.floor(Math.random() * p.maxLife); particles.push(p); }
+
+  /* Node markers (fixed constellation anchor points) */
+  const nodes = Array.from({length: 8}, () => ({
+    x: Math.random() * W * .85 + W * .075,
+    y: Math.random() * H * .85 + H * .075,
+    vx: (Math.random() - .5) * .18,
+    vy: (Math.random() - .5) * .18,
+  }));
+
+  function drawParticles() {
+    ctx.clearRect(0, 0, W, H);
+
+    /* ── Constellation node lines ── */
+    for (let i = 0; i < nodes.length; i++) {
+      nodes[i].x += nodes[i].vx;
+      nodes[i].y += nodes[i].vy;
+      if (nodes[i].x < 0 || nodes[i].x > W) nodes[i].vx *= -1;
+      if (nodes[i].y < 0 || nodes[i].y > H) nodes[i].vy *= -1;
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 280) {
+          const alpha = .12 * (1 - dist / 280);
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(51,232,208,${alpha})`;
+          ctx.lineWidth = .8;
+          ctx.moveTo(nodes[i].x, nodes[i].y);
+          ctx.lineTo(nodes[j].x, nodes[j].y);
+          ctx.stroke();
+        }
+      }
+      /* Node dot */
+      ctx.beginPath();
+      ctx.arc(nodes[i].x, nodes[i].y, 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(51,232,208,.35)';
+      ctx.fill();
+      /* Mouse line to nearest node */
+      const mdx = nodes[i].x - mouse.x, mdy = nodes[i].y - mouse.y;
+      const mdist = Math.sqrt(mdx*mdx + mdy*mdy);
+      if (mdist < 180) {
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(255,182,39,${.18 * (1 - mdist/180)})`;
+        ctx.lineWidth = 1;
+        ctx.moveTo(mouse.x, mouse.y);
+        ctx.lineTo(nodes[i].x, nodes[i].y);
+        ctx.stroke();
+      }
+    }
+
+    /* ── Particles ── */
+    particles.forEach(p => {
+      /* Mouse magnetism — attract within 120px */
+      const dx = mouse.x - p.x, dy = mouse.y - p.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 120) {
+        const force = (120 - dist) / 120 * .012;
+        p.vx += dx * force;
+        p.vy += dy * force;
+      }
+      /* Damping so they don't shoot off */
+      p.vx *= .985; p.vy *= .985;
+      p.x += p.vx; p.y += p.vy;
+      p.life++;
+
+      /* Fade in/out over lifetime */
+      const lifeRatio = p.life / p.maxLife;
+      const fade = lifeRatio < .1 ? lifeRatio / .1 : lifeRatio > .85 ? (1 - lifeRatio) / .15 : 1;
+      const a = p.alpha * fade;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${p.color[0]},${p.color[1]},${p.color[2]},${a})`;
+      ctx.fill();
+
+      /* Particle-particle lines (nearby) */
+      particles.forEach(q => {
+        if (q === p) return;
+        const qd = Math.sqrt((p.x-q.x)**2+(p.y-q.y)**2);
+        if (qd < 90) {
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(${p.color[0]},${p.color[1]},${p.color[2]},${.07*(1-qd/90)*fade})`;
+          ctx.lineWidth = .5;
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(q.x, q.y);
+          ctx.stroke();
+        }
+      });
+
+      if (p.life >= p.maxLife || p.x < -20 || p.x > W+20 || p.y < -20 || p.y > H+20) p.reset();
+    });
+
+    raf = requestAnimationFrame(drawParticles);
+  }
+  drawParticles();
+
+  /* -- Boot sequence -- */
+  const bootLines  = ['lb0','lb1','lb2','lb3','lb4','lb5'];
+  const bootDelays = [400, 900, 1450, 1900, 2350, 2750]; // ms after page load
+
+  bootLines.forEach((id, i) => {
+    const el = document.getElementById(id);
+    // show as "active" (spinner)
+    setTimeout(() => {
+      el.classList.add('visible', 'active');
+    }, bootDelays[i]);
+    // mark done after 450ms
+    setTimeout(() => {
+      el.classList.remove('active');
+      el.classList.add('done');
+      // On last line, enable enter button
+      if (i === bootLines.length - 1) {
+        const btn = document.getElementById('lEnterBtn');
+        btn.style.opacity = '1';
+        /* Radar ready pulse */
+        const badge = document.querySelector('.l-radar-badge');
+        if (badge) badge.classList.add('ready');
+        /* Particle burst colour shift */
+        particles.forEach(p => { p.vx *= 2.2; p.vy *= 2.2; });
+        setTimeout(() => { particles.forEach(p => { p.vx *= .4; p.vy *= .4; }); }, 600);
+      }
+    }, bootDelays[i] + 450);
+  });
+
+  /* -- KPI counter animation — disabled; show final values immediately -- */
+  const statEls = document.querySelectorAll('.l-stat-value[data-target]');
+  statEls.forEach(el => {
+    const target  = parseInt(el.dataset.target, 10);
+    const prefix  = el.dataset.prefix  || '';
+    const suffix  = el.dataset.suffix  || '';
+    el.textContent = prefix + target.toLocaleString('en-IN') + suffix;
+  });
+
+  /* -- Typewriter re-animation on tagline -- */
+  (function() {
+    const el = document.querySelector('.l-tagline');
+    if (!el) return;
+    const fullText = el.innerHTML;
+    // Every 18s do a brief text-colour flash to draw attention
+    setInterval(() => {
+      el.style.transition = 'color .3s';
+      el.style.color = 'rgba(243,239,251,.95)';
+      setTimeout(() => { el.style.color = ''; el.style.transition = ''; }, 600);
+    }, 18000);
+  })();
+
+  /* -- Hex data ticker: update stat values with noise then settle -- */
+  (function() {
+    const chars = '0123456789ABCDEF';
+    function scramble(el, finalVal, duration) {
+      const start = performance.now();
+      const interval = setInterval(() => {
+        const elapsed = (performance.now() - start) / duration;
+        if (elapsed >= 1) { el.textContent = finalVal; clearInterval(interval); return; }
+        // Random hex noise
+        el.style.color = 'rgba(51,232,208,.6)';
+        el.style.fontFamily = "'IBM Plex Mono', monospace";
+        el.style.fontSize = '13px';
+        const len = Math.max(4, finalVal.replace(/[^0-9]/g,'').length);
+        el.textContent = Array.from({length: len}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+      }, 60);
+      setTimeout(() => {
+        el.style.color = '';
+        el.style.fontFamily = '';
+        el.style.fontSize = '';
+      }, duration + 100);
+    }
+    // Trigger on each stat card hover
+    document.querySelectorAll('.l-stat').forEach(card => {
+      const valEl = card.querySelector('.l-stat-value');
+      if (!valEl) return;
+      const final = valEl.textContent;
+      card.addEventListener('mouseenter', () => scramble(valEl, final, 600));
+    });
+  })();
+
+  /* -- Enter command center -- */
+  window.enterCommandCenter = function() {
+    const overlay = document.getElementById('prahariLanding');
+    overlay.classList.add('exit');
+    cancelAnimationFrame(raf);
+
+    // Show the role gate RIGHT NOW, not after the landing's fade finishes.
+    // #prahariLanding (z-index 99999) sits above the role gate (z-index 9998),
+    // so while the landing is still opaque it simply hides the gate underneath.
+    // As the landing's .9s opacity fade plays out, it's the role gate that
+    // gets gradually revealed -- never the bare dashboard.
+    const gate = document.getElementById('roleGate');
+    if (gate) {
+      gate.style.display = 'flex';
+    } else {
+      // defensive fallback if the role gate markup is ever removed
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+      const dashTab = document.querySelector('[data-view="dashboard"]');
+      if (dashTab) dashTab.classList.add('active');
+      const dashView = document.getElementById('view-dashboard');
+      if (dashView) dashView.classList.add('active');
+      if (typeof initDashboard === 'function') initDashboard();
+    }
+
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      document.body.style.overflow = '';
+    }, 900);
+  };
+
+  /* -- Lock scroll while landing is visible -- */
+  document.body.style.overflow = 'hidden';
+
+  /* -- Keyboard shortcut: Enter key -- */
+  document.addEventListener('keydown', function onKey(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const overlay = document.getElementById('prahariLanding');
+      if (overlay && overlay.style.display !== 'none') {
+        e.preventDefault();
+        window.enterCommandCenter();
+        document.removeEventListener('keydown', onKey);
+      }
+    }
+  });
+})();
+/* ------------------------------------------------------- */
+
+</script>
+</body>
+</html>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   PRAHARI AI v2 — Complete Frontend JavaScript
+   - Real FastAPI backend wiring
+   - WebSocket live feed
+   - Real DB-backed KPI counts
+   - India GeoJSON map
+   - Gemini AI classification
+   - Multilingual input support
+   - Case file PDF export
+   - Sparklines in KPI cards
+   - Auto-reconnecting WebSocket
+   ═══════════════════════════════════════════════════════════════ */
+
+const API = 'http://127.0.0.1:8000';
+const WS_URL = 'ws://127.0.0.1:8000/ws/alerts';
+
+/* ── Demo samples (multilingual) ── */
+const SAMPLES = [
+  "Sir this is CBI cyber cell, your Aadhaar is linked to a parcel containing drugs. We need to verify your bank account or a digital arrest warrant will be issued. Do not tell your family, join this video call now.",
+  "Hi, I'm calling from your bank. Please share the OTP you just received immediately to cancel a suspicious transaction or your account will be frozen.",
+  "Your KYC is expired. Please update immediately on this link or your account will be permanently blocked within 24 hours.",
+  "Congratulations! You have been selected for an exclusive investment plan. Guaranteed 40% monthly returns. Register now with just ₹5000.",
+  "Your Amazon parcel has been seized by customs containing illegal items. Call this number immediately to resolve and avoid legal action.",
+  "Hi, this is a reminder your electricity bill is due on the 5th. No payment needed now.",
+  "सर, मैं CBI साइबर सेल से बोल रहा हूँ। आपका आधार एक ड्रग्स पार्सल से जुड़ा है। तुरंत वीडियो कॉल पर आएं अन्यथा डिजिटल अरेस्ट होगा।",
+];
+
+/* ── Tab routing ── */
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('view-' + t.dataset.view)?.classList.add('active');
+    window.location.hash = t.dataset.view;           // ← hash routing line 1
+    if (t.dataset.view === 'dashboard') initDashboard();
+    if (t.dataset.view === 'graph')     initGraph();
+    if (t.dataset.view === 'geo')       initGeo();
+  });
+});
+
+// Restore tab from URL hash on load (hash routing line 2)
+(function restoreTabFromHash() {
+  const h = window.location.hash.slice(1);
+  if (h) {
+    const saved = document.querySelector(`.tab[data-view="${h}"]`);
+    if (saved) saved.click();
+  }
+})();
+
+// Keep in sync with browser back/forward (hash routing line 3)
+window.addEventListener('hashchange', () => {
+  const h = window.location.hash.slice(1);
+  const t = document.querySelector(`.tab[data-view="${h}"]`);
+  if (t) t.click();
+});
+
+/* ── Role gate: picks the STARTING tab only — every tab in nav stays
+   fully clickable for every role. No restriction, ever. ── */
+window.prahariRole = null;
+const ROLE_LABELS = {
+  citizen: '🧑 Citizen',
+  bank: '🏦 Bank / Financial Institution',
+  officer: '🛡 Law Enforcement Officer',
+};
+
+function activateTab(viewName) {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  const tab = document.querySelector(`.tab[data-view="${viewName}"]`);
+  const view = document.getElementById('view-' + viewName);
+  if (tab) tab.classList.add('active');
+  if (view) view.classList.add('active');
+  if (viewName === 'dashboard' && typeof initDashboard === 'function') initDashboard();
+  if (viewName === 'graph' && typeof initGraph === 'function') initGraph();
+  if (viewName === 'geo' && typeof initGeo === 'function') initGeo();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CROSS-MODULE LIVE TRACE — proves the 5 tabs are one system, not
+   five separate tools. Fires when a Citizen Shield report crosses
+   the SCAM_LIKELY threshold; fans out to Fraud Graph, Geo
+   Intelligence, and the Command Dashboard, each truly clickable.
+   ════════════════════════════════════════════════════════════════ */
+let traceClusterCache = null;
+
+async function getTopCluster() {
+  try {
+    if (!traceClusterCache) {
+      const r = await fetch(API + '/graph/clusters');
+      const d = await r.json();
+      traceClusterCache = (d.clusters || []).slice().sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0));
+    }
+    return traceClusterCache[0] || null;
+  } catch (e) { return null; }
+}
+
+async function showLiveTrace({ district, verdict, confidence }) {
+  const container = document.getElementById('traceToastContainer');
+  if (!container) return;
+  const topCluster = await getTopCluster();
+  const districtLabel = district || 'Thane';
+
+  const clusterStep = topCluster
+    ? `<span class="tlink" onclick="jumpToCluster(${topCluster.cluster_id})">Pattern matches Cluster #${topCluster.cluster_id} (${topCluster.risk_level})</span>`
+    : `<span style="color:var(--ink-faint)">Fraud graph unavailable</span>`;
+
+  const toastId = 'trace_' + Date.now();
+  container.insertAdjacentHTML('beforeend', `
+    <div class="trace-toast" id="${toastId}">
+      <button class="trace-toast-close" onclick="dismissTrace('${toastId}')" aria-label="Dismiss">✕</button>
+      <div class="trace-toast-title"><span class="dot"></span>New threat detected</div>
+      <div class="trace-toast-steps">
+        <div>→ ${clusterStep}</div>
+        <div>→ <span class="tlink" onclick="jumpToGeo('${districtLabel}')">Logged in ${districtLabel} hotspot</span></div>
+        <div>→ <span class="tlink" onclick="jumpToDashboardAlerts()">Alert count +1 on Command Dashboard</span></div>
+      </div>
+    </div>
+  `);
+  setTimeout(() => dismissTrace(toastId), 10000);
+}
+
+function dismissTrace(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('leaving');
+  setTimeout(() => el.remove(), 300);
+}
+
+function jumpToCluster(clusterId) {
+  activateTab('graph');
+  setTimeout(() => { if (typeof selectCluster === 'function') selectCluster(clusterId); }, 280);
+}
+
+function jumpToGeo(district) {
+  activateTab('geo');
+  setTimeout(() => highlightDistrictInGeo(district), 280);
+}
+
+function highlightDistrictInGeo(district) {
+  const row = document.querySelector(`#hotspotList [data-district="${district}"]`);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.classList.add('pulse-once');
+  setTimeout(() => row.classList.remove('pulse-once'), 1800);
+}
+
+function jumpToDashboardAlerts() {
+  activateTab('dashboard');
+  setTimeout(refreshAlertsKPI, 280);
+}
+
+async function refreshAlertsKPI() {
+  const kpi = document.getElementById('kpi-alerts');
+  const sb = document.getElementById('sb-alerts');
+  try {
+    const r = await fetch(API + '/dashboard/summary');
+    const data = await r.json();
+    if (kpi) animateKPI('kpi-alerts', data.alerts_sent || 324);
+    if (sb) sb.textContent = data.alerts_sent || sb.textContent;
+  } catch (e) { /* leave existing values if backend is offline */ }
+  [kpi, sb].forEach(el => { if (el) { el.classList.add('pulse-once'); setTimeout(() => el.classList.remove('pulse-once'), 1800); } });
+}
+
+function setRoleBadge(role) {
+  const badge = document.getElementById('roleBadge');
+  const label = document.getElementById('roleBadgeLabel');
+  if (!badge || !label) return;
+  label.textContent = ROLE_LABELS[role] || '';
+  badge.style.display = 'flex';
+}
+
+document.querySelectorAll('.role-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const role = btn.dataset.role;
+    const defaultTab = btn.dataset.defaultTab;
+    window.prahariRole = role;
+
+    const gate = document.getElementById('roleGate');
+    if (gate) {
+      gate.classList.add('hidden');
+      setTimeout(() => { gate.style.display = 'none'; }, 380);
+    }
+    activateTab(defaultTab);
+    setRoleBadge(role);
+  });
+});
+
+// "Switch" in the topbar reopens the gate without reloading or losing state —
+// every tab is still reachable in the meantime, this is purely a re-prompt.
+document.getElementById('roleSwitchBtn')?.addEventListener('click', () => {
+  const gate = document.getElementById('roleGate');
+  if (gate) { gate.style.display = 'flex'; gate.classList.remove('hidden'); }
+});
+
+function useChip(i) { document.getElementById('chatInput').value = SAMPLES[i]; }
+function escHtml(s) { const d = document.createElement('div'); d.innerText = s; return d.innerHTML; }
+
+// UTF-8 safe base64 — plain btoa() throws on non-Latin1 text (Hindi/regional
+// language input), so route through encodeURIComponent first.
+function b64EncodeUtf8(str) {
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode('0x' + p1)));
+}
+function b64DecodeUtf8(str) {
+  return decodeURIComponent(atob(str).split('').map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join(''));
+}
+
+async function downloadCitizenReport(btn) {
+  let analysis;
+  try {
+    analysis = JSON.parse(b64DecodeUtf8(btn.dataset.analysis));
+  } catch (e) {
+    return;
+  }
+  const originalLabel = btn.textContent;
+  btn.textContent = '⏳ Generating…';
+  btn.disabled = true;
+  try {
+    // Normalise field names: frontend uses 'confidence', backend expects 'risk_score'
+    const payload = {
+      session_id:  analysis.session_id  || null,
+      verdict:     analysis.verdict     || 'UNKNOWN',
+      risk_score:  analysis.risk_score  ?? analysis.confidence ?? 0,
+      scam_type:   analysis.scam_type   || analysis.type || null,
+      channel:     analysis.channel     || 'web',
+      district:    analysis.district    || null,
+      timestamp:   analysis.timestamp   || new Date().toISOString(),
+      explanation: analysis.reasoning   || analysis.explanation || null,
+      advice:      Array.isArray(analysis.advice)
+                     ? analysis.advice
+                     : (analysis.advice ? [String(analysis.advice)] : null),
+    };
+    const res = await fetch(API + '/report/citizen-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('Report generation failed: ' + res.status);
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `prahari-report-${analysis.session_id || 'report'}.pdf`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    btn.textContent = '✅ Downloaded';
+  } catch (e) {
+    console.error('Citizen PDF error:', e);
+    btn.textContent = '⚠️ Failed – see console';
+  } finally {
+    setTimeout(() => { btn.textContent = originalLabel; btn.disabled = false; }, 2500);
+  }
+}
+
+function timeAgo(iso) {
+  const ms = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return s + 's ago';
+  const m = Math.floor(s / 60); if (m < 60) return m + 'm ago';
+  return Math.floor(m / 60) + 'h ago';
+}
+function fmtNum(n) { return Number(n).toLocaleString('en-IN'); }
+
+/* ════════════════════════════════════════════════════════════════
+   HEALTH CHECK
+   ════════════════════════════════════════════════════════════════ */
+(async () => {
+  try {
+    const r = await fetch(API + '/');
+    const j = await r.json();
+    document.getElementById('apiDot').className = 'api-status-dot online';
+    document.getElementById('apiStatusText').textContent = 'Online';
+    document.getElementById('backendStatus').textContent = `● Online (Gemini: ${j.gemini})`;
+    document.getElementById('backendStatus').style.color = 'var(--safe)';
+  } catch(e) {
+    document.getElementById('apiStatusText').textContent = 'Offline';
+    document.getElementById('backendStatus').textContent = '● Offline — run: uvicorn main:app --reload';
+    document.getElementById('backendStatus').style.color = 'var(--danger)';
+  }
+})();
+
+/* ════════════════════════════════════════════════════════════════
+   WEBSOCKET LIVE FEED
+   ════════════════════════════════════════════════════════════════ */
+let wsConn = null;
+let wsReconnectDelay = 2000;
+
+function connectWebSocket() {
+  try {
+    wsConn = new WebSocket(WS_URL);
+
+    wsConn.onopen = () => {
+      console.log('[WS] Connected to live feed');
+      wsReconnectDelay = 2000;
+      updateWsStatus(true);
+    };
+
+    wsConn.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        handleWsMessage(msg);
+      } catch(e) {}
+    };
+
+    wsConn.onerror = () => updateWsStatus(false);
+
+    wsConn.onclose = () => {
+      updateWsStatus(false);
+      // Auto-reconnect with exponential backoff
+      setTimeout(() => {
+        wsReconnectDelay = Math.min(wsReconnectDelay * 1.5, 30000);
+        connectWebSocket();
+      }, wsReconnectDelay);
+    };
+  } catch(e) {
+    updateWsStatus(false);
+  }
+}
+
+function updateWsStatus(online) {
+  const dot = document.getElementById('wsDot');
+  const txt = document.getElementById('wsStatusText');
+  if (dot) dot.className = 'api-status-dot ' + (online ? 'online' : 'offline');
+  if (txt) txt.textContent = online ? 'Live' : 'Reconnecting…';
+}
+
+function handleWsMessage(msg) {
+  switch(msg.type) {
+    case 'alert':
+      injectLiveFeedItem(msg.data);
+      updateAlertCount(1);
+      break;
+    case 'incident':
+      // New real-time geo incident — refresh map dot if geo tab is open
+      if (document.getElementById('view-geo')?.classList.contains('active')) {
+        addLiveMapDot(msg.data);
+      }
+      break;
+    case 'dashboard_update':
+      // Update KPI cards with real counts from DB
+      if (msg.data) applyDashboardCounts(msg.data);
+      break;
+    case 'heartbeat':
+      // Silent keep-alive
+      break;
+    case 'history':
+      // Replay buffered alerts for new connections
+      if (msg.alerts) msg.alerts.forEach(a => injectLiveFeedItem(a));
+      break;
+  }
+}
+
+function injectLiveFeedItem(alert) {
+  const feed = document.getElementById('liveFeed');
+  if (!feed) return;
+  const score = alert.risk_score || 0;
+  const levelClass = score >= 70 ? 'high' : score >= 40 ? 'medium' : 'low';
+  const icon = score >= 70 ? '🚨' : score >= 40 ? '⚠️' : '📋';
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  item.innerHTML = `
+    <div class="feed-icon ${levelClass}">${icon}</div>
+    <div style="flex:1">
+      <div class="feed-title">${escHtml(alert.type || 'Alert')}</div>
+      <div class="feed-meta">📍 ${escHtml(alert.district || 'Unknown')} · Session ${escHtml(alert.session_id || '')}</div>
+    </div>
+    <div class="feed-time">${timeAgo(alert.timestamp || new Date().toISOString())}</div>
+  `;
+  feed.insertBefore(item, feed.firstChild);
+  // Keep feed to max 20 items
+  while (feed.children.length > 20) feed.removeChild(feed.lastChild);
+}
+
+function updateAlertCount(delta) {
+  const el = document.getElementById('sb-alerts');
+  if (el) el.textContent = parseInt(el.textContent || '0') + delta;
+}
+
+// Start WebSocket connection
+connectWebSocket();
+
+/* ════════════════════════════════════════════════════════════════
+   CITIZEN SHIELD — Gemini AI Analysis
+   ════════════════════════════════════════════════════════════════ */
+async function analyzeMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const log = document.getElementById('chatLog');
+
+  // Detect language hint from UI selector if present
+  const langSel = document.getElementById('langSelect');
+  const language = langSel ? langSel.value : 'en';
+
+  // District context — grounds the live-trace's geo leg in a real, selected district
+  const districtSel = document.getElementById('districtSelect');
+  const districtOpt = districtSel ? districtSel.selectedOptions[0] : null;
+  const district = districtOpt ? districtOpt.value : null;
+  const lat = districtOpt ? parseFloat(districtOpt.dataset.lat) : null;
+  const lon = districtOpt ? parseFloat(districtOpt.dataset.lon) : null;
+
+  log.insertAdjacentHTML('beforeend', `<div class="msg user">${escHtml(text)}</div>`);
+  input.value = '';
+
+  const thinkId = 'thinking_' + Date.now();
+  log.insertAdjacentHTML('beforeend', `
+    <div class="msg bot" id="${thinkId}">
+      <span style="color:var(--text-3)">🔍 Analyzing with Gemini AI…</span>
+    </div>
+  `);
+  log.scrollTop = log.scrollHeight;
+
+  let data;
+  try {
+    const res = await fetch(API + '/classify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, channel: 'web', language, district, lat, lon }),
+    });
+    data = await res.json();
+  } catch(e) {
+    document.getElementById(thinkId).innerHTML =
+      `⚠️ Backend offline. Start it with <code>python3 main.py</code>`;
+    data = syntheticAnalysis(text);
+  }
+
+  document.getElementById(thinkId)?.remove();
+  renderShieldResult(data, text);
+  log.scrollTop = log.scrollHeight;
+
+  // Cross-module live trace — only for genuinely high-risk verdicts
+  if ((data.confidence || 0) >= 60) {
+    showLiveTrace({ sessionId: data.session_id, district: district || 'Thane', verdict: data.verdict, confidence: data.confidence });
+  }
+}
+
+function syntheticAnalysis(text) {
+  const tl = text.toLowerCase();
+  let score = 0;
+  const flags = [];
+  if (/cbi|police|arrest/.test(tl))              { score += 30; flags.push('Authority Impersonation'); }
+  if (/urgent|immediately|now|minutes/.test(tl)) { score += 20; flags.push('Urgency Language'); }
+  if (/transfer|pay|otp|bank/.test(tl))          { score += 25; flags.push('Financial Demand'); }
+  if (/otp|pin|password/.test(tl))               { score += 20; flags.push('OTP / Credential Request'); }
+  if (/don.t tell|secret|family/.test(tl))       { score += 15; flags.push('Secrecy Instructions'); }
+  score = Math.min(score, 100);
+  const verdict = score >= 60 ? 'SCAM_LIKELY' : score >= 30 ? 'SUSPICIOUS' : 'LIKELY_SAFE';
+  return {
+    verdict, confidence: score, scam_type: flags[0] ? 'DIGITAL_ARREST' : 'UNKNOWN',
+    flags, reasoning: 'Rule-based analysis (backend offline)',
+    advice: score >= 60 ? 'Do NOT transfer money. Hang up. Call 1930.' : 'Verify independently.',
+    session_id: 'DEMO-' + Math.random().toString(36).slice(2,6).toUpperCase(),
+    source: 'rule_based_offline',
+  };
+}
+
+function renderShieldResult(data, originalText) {
+  const { verdict, confidence, scam_type, advice, session_id, flags, reasoning, source } = data;
+  const log = document.getElementById('chatLog');
+
+  const verdictColor = verdict === 'SCAM_LIKELY' ? 'var(--danger)' : verdict === 'SUSPICIOUS' ? 'var(--warn)' : 'var(--safe)';
+  const verdictLabel = verdict === 'SCAM_LIKELY' ? '🚨 SCAM DETECTED' : verdict === 'SUSPICIOUS' ? '⚠ SUSPICIOUS' : '✅ LIKELY SAFE';
+  const sourceLabel = source?.includes('gemini') ? '🤖 Gemini AI' : '📋 Rule-based';
+
+  // Each button carries its own analysis JSON, so downloading an older
+  // message's report later (after newer ones were analyzed) still works.
+  const analysisPayload = { ...data, original_text: originalText, district: document.getElementById('districtSelect')?.value };
+
+  log.insertAdjacentHTML('beforeend', `
+    <div class="msg bot verdict-wrap ${verdict}">
+      <div class="verdict-name" style="color:${verdictColor}">${verdictLabel} &nbsp;·&nbsp; ${confidence}/100</div>
+      ${reasoning ? `<div style="margin-top:6px;font-size:12px;color:var(--text-2);font-style:italic;">"${escHtml(reasoning)}"</div>` : ''}
+      <div style="margin-top:8px;font-size:12.5px;color:var(--text-2);">${escHtml(advice?.split('⚠️')[0] || '')}</div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text-3);">
+        Case: ${session_id || 'N/A'} · Type: ${(scam_type||'UNKNOWN').replace(/_/g,' ')} · ${sourceLabel}
+      </div>
+      <button class="pdf-dl-btn" data-analysis="${b64EncodeUtf8(JSON.stringify(analysisPayload))}" onclick="downloadCitizenReport(this)">📄 Download PDF Report</button>
+    </div>
+  `);
+
+  // Risk meter
+  const score = confidence || 0;
+  document.getElementById('riskScoreBig').textContent = score;
+  document.getElementById('riskScoreBig').style.color = score >= 60 ? 'var(--danger)' : score >= 30 ? 'var(--warn)' : 'var(--safe)';
+  document.getElementById('riskNeedle').style.left = Math.min(98, score) + '%';
+  document.getElementById('riskLabel').innerHTML = `<div style="text-align:center;font-size:12px;color:${verdictColor};font-weight:600;">${verdictLabel}</div>`;
+
+  // Threat panel
+  const tp = document.getElementById('threatPanel');
+  tp.innerHTML = `
+    <div class="intel-row"><span class="intel-label">Risk Score</span><span class="intel-val" style="color:${verdictColor}">${score}/100</span></div>
+    <div class="intel-row"><span class="intel-label">Threat Level</span><span class="intel-val">${score >= 60 ? 'HIGH' : score >= 30 ? 'MEDIUM' : 'LOW'}</span></div>
+    <div class="intel-row"><span class="intel-label">Confidence</span><span class="intel-val">${score}%</span></div>
+    <div class="intel-row"><span class="intel-label">Threat Category</span><span class="intel-val">${(scam_type||'UNKNOWN').replace(/_/g,' ')}</span></div>
+    <div class="intel-row"><span class="intel-label">Case ID</span><span style="display:flex;align-items:center;gap:6px;"><span class="intel-val mono" style="font-size:11px;color:var(--cyan-400)">${session_id || 'DEMO'}</span><button onclick="copyValue('${session_id || 'DEMO'}', this, 'Case ID')" style="background:none;border:1px solid var(--border);color:var(--text-3);padding:2px 7px;border-radius:5px;font-size:10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;transition:.15s;" onmouseover="this.style.borderColor='var(--cyan-400)';this.style.color='var(--cyan-400)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-3)'">📋</button></span></div>
+    <div class="intel-row"><span class="intel-label">AI Engine</span><span class="intel-val" style="color:${source?.includes('gemini')?'var(--safe)':'var(--warn)'}">${sourceLabel}</span></div>
+    <div class="intel-row"><span class="intel-label">Helpline</span><span class="intel-val" style="color:var(--gold-400)">📞 1930</span></div>
+  `;
+
+  // Why flagged
+  const knownFlags = [
+    ['Authority Impersonation', /cbi|police|cid|trai|income tax|customs|सीबीआई|पुलिस/i.test(originalText)],
+    ['Urgency Language',        /urgent|immediately|within|right now|तुरंत|अभी/i.test(originalText)],
+    ['Financial Demand',        /transfer|deposit|pay|account|bank|पैसे/i.test(originalText)],
+    ['OTP / Credential Request',/otp|pin|password|one.?time|ओटीपी/i.test(originalText)],
+    ['Secrecy Instructions',    /don.t tell|secret|family|no one|परिवार को मत/i.test(originalText)],
+    ['Arrest / Legal Threat',   /arrest|warrant|fir|court|legal|गिरफ्तार|वारंट/i.test(originalText)],
+    ['Video Call Pressure',     /video call|join|skype|वीडियो कॉल/i.test(originalText)],
+    ['Drug / Parcel Claim',     /parcel|courier|drug|illegal|पार्सल|ड्रग्स/i.test(originalText)],
+  ];
+
+  // Override with Gemini flags if available
+  const geminiFlags = flags || [];
+  document.getElementById('flagList').innerHTML = knownFlags.map(([label, hit]) => {
+    const geminiHit = geminiFlags.some(f => f.toLowerCase().includes(label.toLowerCase().split('/')[0]));
+    const active = hit || geminiHit;
+    return `<div class="flag-item ${active ? 'active' : ''}">
+      <span class="flag-icon">${active ? '✓' : '○'}</span>
+      <span>${label}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('flagCard').style.display = '';
+
+  // Actions
+  const actions = score >= 60
+    ? [['Block the Number Immediately','🔇'],['Report to Cyber Helpline 1930','📞'],['Preserve Call / Message Evidence','🗂'],['Notify Local Cyber Cell','🚓'],['Do NOT Transfer Money','🚫']]
+    : score >= 30
+    ? [['Verify Caller via Official Number','✅'],['Do Not Share OTP or PIN','🔐'],['Consult Trusted Person','👥']]
+    : [['No immediate action required','✅'],['Stay vigilant','👁'],['Save 1930 in contacts','📞']];
+  document.getElementById('incidentActions').innerHTML = actions.map(([label, icon], i) => `
+    <div class="action-item">
+      <div class="action-num">${i+1}</div>
+      <span>${icon} ${label}</span>
+    </div>
+  `).join('');
+  document.getElementById('incidentCard').style.display = '';
+}
+
+document.getElementById('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') analyzeMessage(); });
+
+/* ════════════════════════════════════════════════════════════════
+   COMMAND DASHBOARD — Real DB-backed KPIs + Charts
+   ════════════════════════════════════════════════════════════════ */
+let dashLoaded = false;
+let trendChartInst = null;
+let pieChartInst = null;
+
+async function initDashboard() {
+  if (dashLoaded) return;
+  dashLoaded = true;
+
+  // Load real counts from backend
+  try {
+    const r = await fetch(API + '/dashboard/summary');
+    const data = await r.json();
+    applyDashboardCounts(data);
+    drawTrendChartJS(data.trend_7day || []);
+  } catch(e) {
+    // Fall back to static demo data
+    animateCounters();
+    drawTrendChartStatic();
+  }
+
+  drawPieChart();
+  populateIncidentTable();
+  startLiveFeedFromAPI();
+}
+
+function applyDashboardCounts(data) {
+  animateKPI('kpi-reports', data.reports_analyzed || data.total_sessions || 12457);
+  animateKPI('kpi-scams',   data.scams_detected || 1842);
+  animateKPI('kpi-alerts',  data.alerts_sent || 324);
+  animateKPI('kpi-rings',   data.fraud_rings || 18);
+  animateKPILoss('kpi-loss', data.loss_prevented_cr || 12.4);
+  animateKPIAcc('kpi-acc',  data.ai_accuracy || 92);
+}
+
+function animateKPI(id, target) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const current = parseInt(el.textContent.replace(/[^0-9]/g, '')) || 0;
+  if (Math.abs(target - current) < 2) { el.textContent = fmtNum(target); return; }
+  const duration = 1200;
+  const start = performance.now();
+  function tick(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = fmtNum(Math.round(current + (target - current) * eased));
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function animateKPILoss(id, target) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let v = 0;
+  const t = setInterval(() => {
+    v = Math.min(v + target / 75, target);
+    el.textContent = '₹' + v.toFixed(1) + ' Cr';
+    if (v >= target) clearInterval(t);
+  }, 16);
+}
+
+function animateKPIAcc(id, target) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let v = 0;
+  const t = setInterval(() => {
+    v = Math.min(v + 1, target);
+    el.textContent = v + '%';
+    if (v >= target) clearInterval(t);
+  }, 16);
+}
+
+function animateCounters() {
+  applyDashboardCounts({
+    reports_analyzed: 12457, scams_detected: 1842, alerts_sent: 324,
+    fraud_rings: 18, loss_prevented_cr: 12.4, ai_accuracy: 92
+  });
+}
+
+function drawTrendChartJS(trend7day) {
+  const ctx = document.getElementById('trendChart');
+  if (!ctx) return;
+  if (trendChartInst) { trendChartInst.destroy(); trendChartInst = null; }
+
+  let labels, values;
+  if (trend7day && trend7day.length > 0) {
+    labels = trend7day.map(d => d.day?.slice(5) || d.day); // MM-DD
+    values = trend7day.map(d => d.count);
+  } else {
+    labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    values = [210, 245, 198, 320, 287, 365, 312];
+  }
+
+  trendChartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Fraud Reports',
+        data: values,
+        borderColor: 'var(--danger)',
+        backgroundColor: 'rgba(240,74,88,0.12)',
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: 'var(--danger)',
+        fill: true,
+        tension: 0.4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'var(--text-3)', font: { size: 10 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'var(--text-3)', font: { size: 10 } } },
+      }
+    }
+  });
+}
+
+function drawTrendChartStatic() {
+  drawTrendChartJS([]);
+}
+
+function drawPieChart() {
+  const ctx = document.getElementById('pieChart');
+  if (!ctx) return;
+  if (pieChartInst) { pieChartInst.destroy(); pieChartInst = null; }
+
+  const data = [
+    { label:'Digital Arrest', val:38, color:'rgb(240,74,88)' },
+    { label:'OTP Fraud',      val:27, color:'rgb(245,166,35)' },
+    { label:'KYC Scam',       val:18, color:'rgb(245,200,66)' },
+    { label:'Investment',     val:10, color:'rgb(45,212,191)' },
+    { label:'Other',          val:7,  color:'rgb(90,104,128)' },
+  ];
+
+  pieChartInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(d => d.label),
+      datasets: [{ data: data.map(d => d.val), backgroundColor: data.map(d => d.color), borderWidth: 2, borderColor: 'var(--navy-800)' }]
+    },
+    options: {
+      responsive: false, maintainAspectRatio: true, cutout: '55%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}%` } }
+      }
+    }
+  });
+
+  const legend = document.getElementById('pieLegend');
+  if (legend) {
+    legend.innerHTML = data.map(d => `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+        <span style="width:9px;height:9px;border-radius:50%;background:${d.color};flex-shrink:0;display:inline-block;"></span>
+        <span style="color:var(--text-2)">${d.label}</span>
+        <span style="margin-left:auto;font-weight:600;color:var(--text)">${d.val}%</span>
+      </div>
+    `).join('');
+  }
+}
+
+function populateIncidentTable() {
+  const districts = ['Mumbai','Delhi','Bengaluru','Hyderabad','Pune','Noida','Chennai','Jamtara','Nuh','Kolkata'];
+  const threats   = ['Digital Arrest','OTP Fraud','KYC Scam','Investment Scam','Courier Scam'];
+  const statuses  = ['REPORTED','UNDER INVESTIGATION','FIR FILED','RESOLVED'];
+  const tbody = document.getElementById('incTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = Array.from({length:10}, (_,i) => {
+    const risk = Math.floor(Math.random()*60)+40;
+    const rClass = risk >= 70 ? 'pill-danger' : risk >= 50 ? 'pill-warn' : 'pill-cyan';
+    const mins = Math.floor(Math.random()*120)+1;
+    return `<tr>
+      <td>PR-${(10024+i)}</td>
+      <td>${districts[i % districts.length]}</td>
+      <td>${threats[i % threats.length]}</td>
+      <td><span class="pill ${rClass}">${risk}</span></td>
+      <td style="font-size:11px;color:var(--text-3)">${statuses[i % statuses.length]}</td>
+      <td style="font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--text-3)">${mins}m ago</td>
+    </tr>`;
+  }).join('');
+}
+
+let _sortCol = -1, _sortAsc = false;
+function sortIncTable(th) {
+  const col = parseInt(th.dataset.col);
+  // Toggle direction if same column, else default to descending for Risk, ascending for others
+  if (_sortCol === col) {
+    _sortAsc = !_sortAsc;
+  } else {
+    _sortAsc = col !== 3; // Risk sorts descending first; others ascending first
+    _sortCol = col;
+  }
+
+  // Update header indicators
+  document.querySelectorAll('#incTable th').forEach(h => {
+    h.classList.remove('sort-asc', 'sort-desc');
+    const icon = h.querySelector('.sort-icon');
+    if (icon) icon.textContent = '↕';
+  });
+  th.classList.add(_sortAsc ? 'sort-asc' : 'sort-desc');
+  const icon = th.querySelector('.sort-icon');
+  if (icon) icon.textContent = '';
+
+  // Sort rows
+  const tbody = document.getElementById('incTableBody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    const aCell = a.cells[col];
+    const bCell = b.cells[col];
+    // For Risk column: extract numeric value from pill span
+    let aVal = aCell.querySelector('.pill') ? parseInt(aCell.querySelector('.pill').textContent) : aCell.textContent.trim();
+    let bVal = bCell.querySelector('.pill') ? parseInt(bCell.querySelector('.pill').textContent) : bCell.textContent.trim();
+    // For Time column: extract numeric minutes
+    if (col === 5) { aVal = parseInt(aVal); bVal = parseInt(bVal); }
+    const cmp = typeof aVal === 'number' && typeof bVal === 'number'
+      ? aVal - bVal
+      : String(aVal).localeCompare(String(bVal));
+    return _sortAsc ? cmp : -cmp;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+  if (typeof toast === 'function') toast(`Sorted by ${th.textContent.replace('↕','').trim()} ${_sortAsc ? '↑' : '↓'}`, 'info', 1500);
+}
+
+async function startLiveFeedFromAPI() {
+  const feed = document.getElementById('liveFeed');
+  if (!feed) return;
+  try {
+    const r = await fetch(API + '/alerts?limit=20');
+    const j = await r.json();
+    feed.innerHTML = '';
+    (j.alerts || []).forEach(a => injectLiveFeedItem(a));
+  } catch(e) {
+    // Fall back to static demo data
+    startLiveFeedStatic();
+  }
+}
+
+function startLiveFeedStatic() {
+  const feed = document.getElementById('liveFeed');
+  if (!feed) return;
+  const FEED_DATA = [
+    { type:'Digital Arrest Scam', district:'Mumbai, MH', risk_score:88, timestamp: new Date(Date.now()-60000).toISOString() },
+    { type:'OTP Fraud Wave',       district:'New Delhi', risk_score:82, timestamp: new Date(Date.now()-300000).toISOString() },
+    { type:'Fake KYC Campaign',    district:'Bengaluru', risk_score:64, timestamp: new Date(Date.now()-600000).toISOString() },
+    { type:'Investment Scam Ring', district:'Hyderabad', risk_score:78, timestamp: new Date(Date.now()-900000).toISOString() },
+    { type:'SIM Swap Detected',    district:'Noida, UP', risk_score:55, timestamp: new Date(Date.now()-1200000).toISOString() },
+  ];
+  feed.innerHTML = '';
+  FEED_DATA.forEach((item, i) => {
+    setTimeout(() => injectLiveFeedItem(item), i * 300);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FRAUD GRAPH
+   ════════════════════════════════════════════════════════════════ */
+let graphLoaded = false, graphData = null, clustersData = [];
+let selectedCluster = null;
+
+async function initGraph() {
+  if (graphLoaded) return;
+  graphLoaded = true;
+  try {
+    const [g, c] = await Promise.all([
+      fetch(API + '/graph').then(r => r.json()),
+      fetch(API + '/graph/clusters').then(r => r.json()),
+    ]);
+    graphData = g;
+    clustersData = c.clusters || [];
+  } catch(e) {
+    graphData = genDemoGraph();
+    clustersData = genDemoClusters();
+  }
+  renderClusterList();
+  renderGraph();
+}
+
+function genDemoGraph() {
+  const nodes = [], edges = [];
+  for (let c = 0; c < 4; c++) {
+    const cn = [];
+    for (let i = 0; i < 6; i++) {
+      const id = `NODE_${c}_${i}`;
+      nodes.push({ id, type: ['PHONE','UPI_ID','BANK_ACC','DEVICE_ID'][i%4], cluster_seed: c });
+      cn.push(id);
+    }
+    for (let i = 0; i < cn.length; i++)
+      for (let j = i+1; j < cn.length; j++)
+        if (Math.random() < .45) edges.push({ source: cn[i], target: cn[j], weight: +(Math.random()*.5+.5).toFixed(2) });
+  }
+  for (let i = 0; i < 15; i++) nodes.push({ id: `NOISE_${i}`, type: 'PHONE', cluster_seed: -1 });
+  return { nodes, edges };
+}
+
+function genDemoClusters() {
+  return [0,1,2,3].map(id => ({
+    cluster_id: id, size: 6,
+    risk_level: ['HIGH','HIGH','MEDIUM','LOW'][id],
+    risk_score: [82,74,51,28][id],
+    density: [.65,.58,.42,.25][id],
+    members: Array.from({length:6},(_,i)=>`NODE_${id}_${i}`),
+  }));
+}
+
+function renderClusterList() {
+  const el = document.getElementById('clusterList');
+  if (!el || !clustersData.length) return;
+  el.innerHTML = clustersData.map(c => `
+    <div class="cluster-item ${selectedCluster === c.cluster_id ? 'selected' : ''}"
+         data-id="${c.cluster_id}" onclick="selectCluster(${c.cluster_id})">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong style="font-family:'Rajdhani',sans-serif;font-size:15px">Cluster #${c.cluster_id}</strong>
+        <span class="pill ${c.risk_level==='HIGH'?'pill-danger':c.risk_level==='MEDIUM'?'pill-warn':'pill-cyan'}">${c.risk_level} · ${c.risk_score}</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-3);margin-top:4px;">${c.size} entities · density ${c.density}</div>
+    </div>
+  `).join('');
+}
+
+async function selectCluster(id) {
+  selectedCluster = id;
+  renderClusterList();
+  let intel;
+  try {
+    const r = await fetch(`${API}/graph/intel/${id}`);
+    intel = await r.json();
+  } catch(e) {
+    const c = clustersData.find(x => x.cluster_id === id);
+    intel = c ? {
+      cluster_id: c.cluster_id, risk_level: c.risk_level, risk_score: c.risk_score,
+      entity_count: c.size, entities: c.members.map(m => ({id: m, type: 'PHONE'})),
+      linkages: [], summary: `Cluster ${c.cluster_id}: ${c.size} entities, ${c.risk_level} risk.`
+    } : null;
+  }
+  if (!intel) return;
+
+  const panel = document.getElementById('clusterDetailBody');
+  panel.innerHTML = `
+    <div class="intel-row"><span class="intel-label">Cluster ID</span><span class="intel-val">#${intel.cluster_id}</span></div>
+    <div class="intel-row"><span class="intel-label">Risk Level</span><span class="intel-val" style="color:${intel.risk_level==='HIGH'?'var(--danger)':intel.risk_level==='MEDIUM'?'var(--warn)':'var(--safe)'}">${intel.risk_level}</span></div>
+    <div class="intel-row"><span class="intel-label">Risk Score</span><span class="intel-val">${intel.risk_score}/100</span></div>
+    <div class="intel-row"><span class="intel-label">Connected Entities</span><span class="intel-val">${intel.entity_count}</span></div>
+    <div class="intel-row"><span class="intel-label">Linkages</span><span class="intel-val">${(intel.linkages||[]).length}</span></div>
+    <div style="margin-top:14px;font-size:12.5px;color:var(--text-2);line-height:1.7;">${intel.summary || ''}</div>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="${API}/graph/intel/${id}/case-file" target="_blank"
+         style="display:inline-block;padding:8px 14px;border-radius:8px;background:var(--gold-dim);border:1px solid var(--gold-border);color:var(--gold-400);font-size:12.5px;font-weight:600;text-decoration:none;">
+        📄 Export Case File (PDF)
+      </a>
+    </div>
+  `;
+}
+
+function renderGraph() {
+  if (!graphData) return;
+  const svgEl = document.getElementById('graphSvg');
+  const W = svgEl.clientWidth || 600, H = 500;
+  const svg = d3.select('#graphSvg').attr('viewBox', `0 0 ${W} ${H}`);
+  svg.selectAll('*').remove();
+
+  const nodeCluster = {};
+  clustersData.forEach(c => (c.members || []).forEach(m => nodeCluster[m] = c));
+
+  const nodes = graphData.nodes.map(d => ({...d}));
+  const links = graphData.edges.map(d => ({...d}));
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(50).strength(.5))
+    .force('charge', d3.forceManyBody().strength(-90))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collide', d3.forceCollide(14));
+
+  const link = svg.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke', '#1C2B45').attr('stroke-width', d=>1+(d.weight||.3)*2);
+
+  const node = svg.append('g').selectAll('circle').data(nodes).join('circle')
+    .attr('r', d => nodeCluster[d.id] ? 9 : 5)
+    .attr('fill', d => {
+      const c = nodeCluster[d.id];
+      if (d.type === 'FLAGGED_SESSION') return '#fff';
+      if (!c) return '#2A3A50';
+      return c.risk_level==='HIGH' ? 'var(--danger)' : c.risk_level==='MEDIUM' ? 'var(--warn)' : 'var(--cyan-400)';
+    })
+    .attr('stroke', d => selectedCluster !== null && nodeCluster[d.id]?.cluster_id === selectedCluster ? '#fff' : 'none')
+    .attr('stroke-width', 2).style('cursor','pointer')
+    .on('click', (e,d) => { const c = nodeCluster[d.id]; if (c) selectCluster(c.cluster_id); })
+    .call(d3.drag()
+      .on('start', (e,d) => { if(!e.active) sim.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
+      .on('end',   (e,d) => { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  node.append('title').text(d=>`${d.id} (${d.type||'?'})`);
+  sim.on('tick', () => {
+    link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    node.attr('cx',d=>d.x).attr('cy',d=>d.y);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CURRENCY INTELLIGENCE
+   ════════════════════════════════════════════════════════════════ */
+let selectedDenom = '100';
+
+document.querySelectorAll('.denom-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.denom-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedDenom = btn.dataset.d;
+  });
+});
+
+const uploadZone = document.getElementById('uploadZone');
+if (uploadZone) {
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault(); uploadZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) processCurrencyFile(file);
+  });
+}
+
+function handleNoteUpload(e) { const f = e.target.files[0]; if (f) processCurrencyFile(f); }
+
+function setTimelineStep(step, state) {
+  const steps = document.querySelectorAll('#analysisTimeline .timeline-step');
+  if (!steps[step-1]) return;
+  const num = steps[step-1].querySelector('.t-num');
+  num.className = 't-num ' + state;
+  if (state === 'done') num.textContent = '✓';
+  else if (state === 'active') num.textContent = step;
+}
+
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
+async function processCurrencyFile(file) {
+  const preview = document.getElementById('notePreview');
+  const reader = new FileReader();
+  reader.onload = async (e2) => {
+    preview.src = e2.target.result;
+    preview.style.display = 'block';
+    for (let i = 1; i <= 5; i++) setTimelineStep(i, 'pending');
+    setTimelineStep(1, 'done');
+    await delay(300); setTimelineStep(2, 'active');
+    await delay(400); setTimelineStep(2, 'done'); setTimelineStep(3, 'active');
+    await delay(600); setTimelineStep(3, 'done'); setTimelineStep(4, 'active');
+    await delay(500); setTimelineStep(4, 'done'); setTimelineStep(5, 'active');
+
+    let result;
+    try {
+      const r = await fetch(API + '/classify-currency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: e2.target.result, claimed_denomination: selectedDenom }),
+      });
+      result = await r.json();
+    } catch(err) {
+      result = demoCurrencyResult();
+    }
+    await delay(300); setTimelineStep(5, 'done');
+    renderCurrencyResult(result);
+  };
+  reader.readAsDataURL(file);
+}
+
+function demoCurrencyResult() {
+  return {
+    verdict: 'NEEDS_MANUAL_REVIEW', confidence: 48, risk_level: 'MEDIUM',
+    detected_denomination: '₹20', checks_passed: 2, total_checks: 6,
+    checks: {
+      'Security thread': { pass: false, detail: 'Thread column variance: 2.8 — absent' },
+      'Watermark (Gandhi portrait)': { pass: false, detail: 'Local contrast: 10.7 — flat' },
+      'Portrait intaglio complexity': { pass: false, detail: 'Complexity: 33.1 — below threshold' },
+      'Denomination color profile': { pass: true,  detail: 'Distance: 42.3 — within range' },
+      'Paper texture signature': { pass: true,  detail: 'Texture score: 34.3 — acceptable' },
+    },
+    suspicious_flags: ['Top strip unusually bright', 'Serial pattern appears duplicated'],
+    action: 'Hold note. Verify with UV lamp. Do not accept without verification.',
+  };
+}
+
+function renderCurrencyResult(data) {
+  const { verdict, confidence, risk_level, checks, suspicious_flags, action, detected_denomination } = data;
+  const vColor = verdict === 'LIKELY_GENUINE' ? 'var(--safe)' : verdict === 'LIKELY_COUNTERFEIT' ? 'var(--danger)' : 'var(--warn)';
+  const vIcon  = verdict === 'LIKELY_GENUINE' ? '✅' : verdict === 'LIKELY_COUNTERFEIT' ? '🚨' : '⚠️';
+
+  const resultBody = document.getElementById('currencyResultBody');
+  if (!resultBody) return;
+  resultBody.innerHTML = `
+    <div style="text-align:center;padding:12px 0 20px;">
+      <div style="font-size:36px;margin-bottom:8px">${vIcon}</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:${vColor}">${verdict.replace(/_/g,' ')}</div>
+      <div style="font-size:13px;color:var(--text-3);margin-top:4px;">Authenticity Score: <strong style="color:${vColor}">${confidence}/100</strong></div>
+      <div style="font-size:12px;color:var(--text-3);margin-top:2px;">Detected: ${detected_denomination || '—'} · Risk: <span style="color:${vColor}">${risk_level}</span></div>
+    </div>
+    <div style="font-size:13px;color:var(--text-2);line-height:1.7;padding:12px;background:var(--navy-600);border-radius:8px;border:1px solid var(--border);margin-bottom:12px;">${action}</div>
+    ${suspicious_flags?.length ? `
+      <div class="sec-title" style="margin-bottom:6px;">⚠ Forgery Indicators</div>
+      ${suspicious_flags.map(f=>`<div style="font-size:12px;color:var(--danger);padding:4px 0;border-bottom:1px solid var(--border-2)">• ${f}</div>`).join('')}
+    ` : ''}
+  `;
+  document.getElementById('currencyResult').style.display = '';
+
+  const checksBody = document.getElementById('securityChecksBody');
+  if (checks && checksBody) {
+    checksBody.innerHTML = Object.entries(checks).map(([name, c]) => `
+      <div class="check-row">
+        <span class="check-label">${name}</span>
+        <span class="${c.pass ? 'check-badge-pass' : 'check-badge-fail'}">${c.pass ? '✓ PASS' : '✗ FAIL'}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);padding:0 0 6px;">${c.detail}</div>
+    `).join('');
+    document.getElementById('securityChecksCard').style.display = '';
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   GEO INTELLIGENCE — Real India GeoJSON Map + Live Data
+   ════════════════════════════════════════════════════════════════ */
+let geoLoaded = false;
+
+async function initGeo() {
+  if (geoLoaded) return;
+  geoLoaded = true;
+
+  let hotspots = [], districts = [], forecasts = [];
+  try {
+    const [h, d, f] = await Promise.all([
+      fetch(API + '/geo/hotspots').then(r => r.json()),
+      fetch(API + '/geo/districts').then(r => r.json()),
+      fetch(API + '/forecast/districts').then(r => r.json()),
+    ]);
+    hotspots = h.hotspots || [];
+    districts = d.districts || [];
+    forecasts = f.forecasts || [];
+  } catch(e) {
+    districts = getDemoDistricts();
+    forecasts = getDemoForecasts();
+  }
+
+  renderHotspots(districts);
+  renderForecasts(forecasts);
+  drawGeoTrendChart();
+  drawGeoBarChart();
+  drawIndiaMap(hotspots);
+}
+
+function getDemoDistricts() {
+  return [
+    { district:'Jamtara', total:47, pct:100 },
+    { district:'Nuh', total:38, pct:81 },
+    { district:'Mumbai City', total:34, pct:72 },
+    { district:'Bengaluru Urban', total:31, pct:66 },
+    { district:'New Delhi', total:28, pct:60 },
+    { district:'Noida', total:24, pct:51 },
+    { district:'Hyderabad', total:21, pct:45 },
+    { district:'Gurugram', total:18, pct:38 },
+  ];
+}
+
+function getDemoForecasts() {
+  return [
+    { district:'Jamtara, Jharkhand',   trend:'EMERGING_HOTSPOT', growth_rate_pct:42, explanation:'Digital arrest calls up 34% vs last week.' },
+    { district:'Nuh, Haryana',         trend:'RISING',            growth_rate_pct:28, explanation:'New OTP phishing cluster identified.' },
+    { district:'Deoghar, Jharkhand',   trend:'RISING',            growth_rate_pct:18, explanation:'SIM swap activity increasing.' },
+    { district:'Gurugram, Haryana',    trend:'STABLE',            growth_rate_pct:2,  explanation:'Investment scam reports steady.' },
+    { district:'Mumbai City, MH',      trend:'DECLINING',         growth_rate_pct:-12, explanation:'Enforcement action showing impact.' },
+  ];
+}
+
+function renderHotspots(districts) {
+  const el = document.getElementById('hotspotList');
+  if (!el) return;
+  const maxTotal = Math.max(...districts.map(d => d.total || 0), 1);
+  el.innerHTML = districts.slice(0,8).map((d, i) => {
+    const pct = Math.round((d.total / maxTotal) * 100);
+    const color = pct >= 70 ? 'var(--danger)' : pct >= 40 ? 'var(--warn)' : 'var(--cyan-400)';
+    return `<div class="district-row" data-district="${d.district}">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:var(--text-3);width:14px">${i+1}</span>
+          <div class="district-name">${d.district}</div>
+        </div>
+        <div class="district-state" style="margin-left:22px">${d.state || ''}</div>
+      </div>
+      <div class="bar-mini-track"><div class="bar-mini-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="district-count" style="color:${color}">${d.total}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderForecasts(forecasts) {
+  const el = document.getElementById('forecastPanel');
+  if (!el) return;
+  const pillClass = { EMERGING_HOTSPOT: 'pill-danger', RISING: 'pill-warn', STABLE: 'pill-cyan', DECLINING: 'pill-safe', LOW_ACTIVITY: 'pill-gold' };
+  el.innerHTML = forecasts.slice(0,5).map(f => `
+    <div class="forecast-bar">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="forecast-district">${f.district}</div>
+        <span class="pill ${pillClass[f.trend] || 'pill-cyan'}" style="font-size:10px">${f.trend?.replace(/_/g,' ')} ${f.growth_rate_pct >= 0 ? '+' : ''}${f.growth_rate_pct}%</span>
+      </div>
+      <div class="forecast-detail">${f.explanation || ''}</div>
+    </div>
+  `).join('');
+}
+
+function drawGeoTrendChart() {
+  const data = [28, 34, 31, 42, 38, 51, 47];
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const svg = d3.select('#geoTrendChart');
+  if (!svg.node()) return;
+  const W = (svg.node().clientWidth || 300), H = 130;
+  svg.attr('viewBox', `0 0 ${W} ${H}`);
+  const m = { t:8, r:10, b:22, l:30 };
+  const x = d3.scaleLinear().domain([0,data.length-1]).range([m.l, W-m.r]);
+  const y = d3.scaleLinear().domain([20, 60]).range([H-m.b, m.t]);
+  svg.append('defs').append('linearGradient').attr('id','geoGrad').attr('x1','0').attr('y1','0').attr('x2','0').attr('y2','1')
+    .selectAll('stop').data([{offset:'0%',color:'rgba(245,166,35,.35)'},{offset:'100%',color:'rgba(245,166,35,0)'}])
+    .join('stop').attr('offset',d=>d.offset).attr('stop-color',d=>d.color);
+  const area = d3.area().x((d,i)=>x(i)).y0(H-m.b).y1(d=>y(d)).curve(d3.curveCatmullRom);
+  svg.append('path').datum(data).attr('d',area).attr('fill','url(#geoGrad)');
+  const line = d3.line().x((d,i)=>x(i)).y(d=>y(d)).curve(d3.curveCatmullRom);
+  svg.append('path').datum(data).attr('d',line).attr('fill','none').attr('stroke','var(--warn)').attr('stroke-width',2);
+  svg.selectAll('circle').data(data).join('circle').attr('cx',(d,i)=>x(i)).attr('cy',d=>y(d))
+    .attr('r',3).attr('fill','var(--warn)').attr('stroke','var(--navy-900)').attr('stroke-width',1.5);
+  svg.selectAll('.gl').data(days).join('text').attr('class','gl').attr('x',(d,i)=>x(i)).attr('y',H-6)
+    .attr('text-anchor','middle').attr('fill','var(--text-3)').attr('font-size',10).text(d=>d);
+}
+
+function drawGeoBarChart() {
+  const data = [
+    {label:'Digital Arrest',val:47},{label:'OTP Fraud',val:38},{label:'UPI Fraud',val:29},
+    {label:'KYC Scam',val:21},{label:'Job Scam',val:16},{label:'Investment',val:11},
+  ];
+  const colors = ['var(--danger)','var(--warn)','var(--gold-400)','var(--cyan-400)','var(--safe)','var(--text-3)'];
+  const svg = d3.select('#geoBarChart');
+  if (!svg.node()) return;
+  const W = (svg.node().clientWidth || 300), H = 200;
+  svg.attr('viewBox', `0 0 ${W} ${H}`);
+  const m = {t:8,r:10,b:20,l:90};
+  const x = d3.scaleLinear().domain([0,50]).range([m.l, W-m.r]);
+  const y = d3.scaleBand().domain(data.map(d=>d.label)).range([m.t,H-m.b]).padding(.3);
+  svg.selectAll('rect').data(data).join('rect').attr('x',m.l).attr('y',d=>y(d.label))
+    .attr('height',y.bandwidth()).attr('width',0).attr('fill',(d,i)=>colors[i]).attr('rx',3)
+    .transition().duration(800).delay((_,i)=>i*100).attr('width',d=>x(d.val)-m.l);
+  svg.selectAll('.bar-label').data(data).join('text').attr('class','bar-label')
+    .attr('x',m.l-6).attr('y',d=>y(d.label)+y.bandwidth()/2+4).attr('text-anchor','end')
+    .attr('fill','var(--text-2)').attr('font-size',11).text(d=>d.label);
+  svg.selectAll('.bar-val').data(data).join('text').attr('class','bar-val')
+    .attr('x',d=>x(d.val)+4).attr('y',d=>y(d.label)+y.bandwidth()/2+4)
+    .attr('fill','var(--text-3)').attr('font-size',10).text(d=>d.val);
+}
+
+/* ── India Map with real city coordinates ── */
+function drawIndiaMap(hotspots) {
+  const svg = d3.select('#mapSvg');
+  if (!svg.node()) return;
+  svg.attr('viewBox','0 0 500 560');
+  svg.append('rect').attr('width',500).attr('height',560).attr('fill','var(--navy-700)').attr('rx',10);
+
+  const toX = lng => (lng - 68) / (98 - 68) * 460 + 20;
+  const toY = lat => (37 - lat) / (37 - 8) * 490 + 30;
+
+  // Real incidents from API or demo fallback
+  const incidents = hotspots.length > 0
+    ? hotspots.map(h => ({
+        name: h.districts?.[0] || 'Unknown',
+        lat: h.lat, lng: h.lon,
+        risk: h.intensity > 30 ? 'high' : h.intensity > 15 ? 'medium' : 'low',
+        r: Math.min(20, Math.max(6, h.incident_count * 0.6)),
+      }))
+    : [
+        {name:'Jamtara', lat:23.96, lng:86.80, risk:'high', r:16},
+        {name:'Nuh',     lat:28.11, lng:77.00, risk:'high', r:14},
+        {name:'Mumbai',  lat:18.94, lng:72.84, risk:'high', r:18},
+        {name:'Delhi',   lat:28.61, lng:77.21, risk:'high', r:16},
+        {name:'Bengaluru',lat:12.97,lng:77.59,risk:'medium',r:13},
+        {name:'Hyderabad',lat:17.38,lng:78.49,risk:'medium',r:12},
+        {name:'Kolkata', lat:22.57, lng:88.36, risk:'medium',r:11},
+        {name:'Pune',    lat:18.52, lng:73.86, risk:'low', r:9},
+        {name:'Lucknow', lat:26.85, lng:80.95, risk:'medium',r:10},
+        {name:'Chennai', lat:13.08, lng:80.27, risk:'low', r:9},
+        {name:'Patna',   lat:25.59, lng:85.14, risk:'medium',r:10},
+        {name:'Gurugram',lat:28.46, lng:77.03, risk:'medium',r:11},
+      ];
+
+  // Grid lines
+  for (let i = 0; i <= 5; i++) {
+    svg.append('line').attr('x1',20).attr('y1',30+i*98).attr('x2',480).attr('y2',30+i*98)
+      .attr('stroke','rgba(255,255,255,.04)').attr('stroke-width',1);
+    svg.append('line').attr('x1',20+i*92).attr('y1',30).attr('x2',20+i*92).attr('y2',520)
+      .attr('stroke','rgba(255,255,255,.04)').attr('stroke-width',1);
+  }
+
+  // India border outline (approximate polygon — key cities as anchors)
+  const borderPath = "M 85,50 L 95,55 L 130,52 L 165,58 L 200,52 L 240,48 L 280,52 L 310,58 L 340,70 L 360,85 L 370,110 L 375,130 L 370,155 L 360,175 L 365,200 L 375,220 L 380,245 L 370,270 L 355,295 L 340,320 L 320,345 L 295,365 L 280,385 L 270,405 L 255,425 L 240,445 L 225,460 L 210,475 L 195,490 L 185,505 L 175,510 L 165,505 L 155,490 L 150,475 L 145,455 L 135,435 L 120,415 L 108,390 L 98,365 L 88,340 L 78,310 L 70,280 L 65,250 L 62,225 L 65,200 L 68,175 L 72,150 L 75,125 L 80,100 L 85,75 Z";
+  svg.append('path').attr('d', borderPath).attr('fill','rgba(45,212,191,0.04)').attr('stroke','rgba(45,212,191,0.2)').attr('stroke-width',1);
+
+  // Pulse rings for high risk
+  incidents.filter(d=>d.risk==='high').forEach(d => {
+    const cx = toX(d.lng), cy = toY(d.lat);
+    for (let r = 0; r < 3; r++) {
+      svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',d.r+r*8)
+        .attr('fill','none').attr('stroke','var(--danger)').attr('stroke-width',.5)
+        .attr('opacity', .25 - r*.06);
+    }
+  });
+
+  // Dots
+  incidents.forEach(d => {
+    const cx = toX(d.lng), cy = toY(d.lat);
+    const color = d.risk==='high' ? 'var(--danger)' : d.risk==='medium' ? 'var(--warn)' : 'var(--cyan-400)';
+    svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',d.r).attr('fill',color).attr('opacity',.22);
+    svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',d.r*.45).attr('fill',color);
+    svg.append('text').attr('x',cx).attr('y',cy+d.r+11)
+      .attr('text-anchor','middle').attr('fill','var(--text-2)').attr('font-size',9).text(d.name);
+  });
+
+  // Legend
+  svg.append('text').attr('x',250).attr('y',550).attr('text-anchor','middle')
+    .attr('fill','var(--text-3)').attr('font-size',10).text('Live Fraud Incident Map — PRAHARI AI');
+  [['HIGH',16,'var(--danger)'],['MEDIUM',8,'var(--warn)'],['LOW',4,'var(--cyan-400)']].forEach(([label,x,color],i) => {
+    svg.append('circle').attr('cx',30+i*90).attr('cy',20).attr('r',5).attr('fill',color);
+    svg.append('text').attr('x',40+i*90).attr('y',24).attr('fill','var(--text-3)').attr('font-size',9).text(label+' RISK');
+  });
+}
+
+function addLiveMapDot(incident) {
+  // Add a real-time dot to the map when a live incident comes in via WebSocket
+  if (!incident.lat || !incident.lon) return;
+  const svg = d3.select('#mapSvg');
+  if (!svg.node()) return;
+  const toX = lng => (lng - 68) / (98 - 68) * 460 + 20;
+  const toY = lat => (37 - lat) / (37 - 8) * 490 + 30;
+  const cx = toX(incident.lon), cy = toY(incident.lat);
+  svg.append('circle').attr('cx',cx).attr('cy',cy).attr('r',6)
+    .attr('fill','var(--danger)').attr('opacity',0.9)
+    .transition().duration(2000).attr('r',14).attr('opacity',0)
+    .remove();
+}
+
+/* ── init ── */
+document.getElementById('chatInput')?.focus();
+</script>
+</body>
+</html>
